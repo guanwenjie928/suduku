@@ -63,7 +63,7 @@ export default function Home({ onNavigate }) {
           className="py-4 px-2 rounded-2xl font-semibold text-sm bg-gradient-to-r from-sky-400 to-blue-400 text-white shadow-lg hover:shadow-xl transform transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] flex flex-col items-center justify-center gap-2"
         >
           <Icon name="BarChart3" className="w-6 h-6" />
-          历史排名
+          实时排名
         </button>
         <button
           onClick={() => onNavigate('tutorial')}

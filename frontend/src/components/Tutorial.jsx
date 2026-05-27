@@ -74,26 +74,53 @@ export default function Tutorial({ onBack }) {
             </ul>
           </div>
 
-          {/* 计分说明 */}
+          {/* 计分规则 */}
           <div className="bg-white rounded-2xl p-6 shadow-md">
             <h2 className="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
               <Icon name="Trophy" className="w-5 h-5 text-yellow-500" />
-              排名规则
+              计分规则（排行榜排名依据）
             </h2>
-            <ul className="space-y-2 text-slate-600 text-sm">
-              <li className="flex gap-2">
-                <span className="text-yellow-500 font-bold mt-0.5">1.</span>
-                排名优先比较错误格子数（越少越好）
-              </li>
-              <li className="flex gap-2">
-                <span className="text-yellow-500 font-bold mt-0.5">2.</span>
-                错误数相同则比较未填格子数（越少越好）
-              </li>
-              <li className="flex gap-2">
-                <span className="text-yellow-500 font-bold mt-0.5">3.</span>
-                都相同时比较总用时（越短越好）
-              </li>
-            </ul>
+            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-4 mb-4 border border-yellow-200">
+              <p className="text-lg font-mono font-bold text-amber-700 text-center">
+                积分 = 完成关卡 × 1000 − 错误 × 10 − 未填 × 5 − 用时 ÷ 10
+              </p>
+            </div>
+            <div className="space-y-3 text-slate-600 text-sm">
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                <span className="text-emerald-500 font-bold text-lg w-16 text-center">+1000</span>
+                <div>
+                  <span className="font-semibold text-slate-700">每完成 1 关</span>
+                  <p className="text-slate-500 text-xs">多完成一关的奖励远大于扣分上限，确保进度领先的永远排在前面</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-100">
+                <span className="text-red-500 font-bold text-lg w-16 text-center">-10</span>
+                <div>
+                  <span className="font-semibold text-slate-700">每个错误格子</span>
+                  <p className="text-slate-500 text-xs">准确性比速度重要 100 倍，一个错误等于 100 秒的用时</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
+                <span className="text-orange-500 font-bold text-lg w-16 text-center">-5</span>
+                <div>
+                  <span className="font-semibold text-slate-700">每个未填格子</span>
+                  <p className="text-slate-500 text-xs">没填比填错扣分少一半，鼓励尽量填写</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <span className="text-blue-500 font-bold text-lg w-16 text-center">-1</span>
+                <div>
+                  <span className="font-semibold text-slate-700">每 10 秒用时</span>
+                  <p className="text-slate-500 text-xs">速度作为辅助排序因子，不影响关卡数和准确性的主导地位</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
+              <p className="font-semibold mb-1">举例</p>
+              <p>麒麟组完成 4 关、0 错、用时 180 秒 = 4×1000 − 0 − 0 − 18 = <span className="font-bold text-slate-700">3982 分</span></p>
+              <p>闪电组完成 4 关、1 错、用时 240 秒 = 4×1000 − 10 − 0 − 24 = <span className="font-bold text-slate-700">3966 分</span></p>
+              <p>青云组完成 2 关、0 错、用时 120 秒 = 2×1000 − 0 − 0 − 12 = <span className="font-bold text-slate-700">1988 分</span></p>
+            </div>
           </div>
 
           {/* 比赛模式 */}

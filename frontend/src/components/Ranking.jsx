@@ -311,7 +311,12 @@ export default function Ranking({ onBack }) {
                   </div>
 
                   {/* 数据指标 */}
-                  <div className="flex gap-3 flex-shrink-0">
+                  <div className="flex gap-3 flex-shrink-0 items-center">
+                    {/* 积分（主排名依据） */}
+                    <div className="text-center bg-emerald-500/10 rounded-lg px-3 py-1.5 border border-emerald-500/20">
+                      <p className="text-emerald-400 text-xs font-medium">积分</p>
+                      <p className="text-emerald-300 font-mono font-bold text-lg">{player.score ?? 0}</p>
+                    </div>
                     <div className="text-center">
                       <p className="text-slate-400 text-xs">用时</p>
                       <p className="text-white font-mono font-bold text-sm">{formatTime(player.totalTime || 0)}</p>
