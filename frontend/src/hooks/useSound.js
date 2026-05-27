@@ -27,6 +27,38 @@ const SoundManager = {
     g.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
     o.start(now); o.stop(now + 0.05);
   },
+  playCountdownBeep() {
+    this.init();
+    const now = this.ctx.currentTime;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.connect(g); g.connect(this.ctx.destination);
+    o.frequency.value = 880; o.type = 'sine';
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+    o.start(now); o.stop(now + 0.15);
+  },
+  playGo() {
+    this.init();
+    const now = this.ctx.currentTime;
+    // 上行滑音 440→880Hz，带和声
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.connect(g); g.connect(this.ctx.destination);
+    o.frequency.setValueAtTime(440, now);
+    o.frequency.linearRampToValueAtTime(880, now + 0.3);
+    o.type = 'sawtooth';
+    g.gain.setValueAtTime(0.15, now);
+    g.gain.linearRampToValueAtTime(0.3, now + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    o.start(now); o.stop(now + 0.5);
+    // 高八度和声
+    const o2 = this.ctx.createOscillator(), g2 = this.ctx.createGain();
+    o2.connect(g2); g2.connect(this.ctx.destination);
+    o2.frequency.setValueAtTime(880, now + 0.05);
+    o2.type = 'square';
+    g2.gain.setValueAtTime(0.06, now + 0.05);
+    g2.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    o2.start(now + 0.05); o2.stop(now + 0.5);
+  },
   playVictory() {
     this.init();
     const now = this.ctx.currentTime;

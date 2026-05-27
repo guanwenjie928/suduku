@@ -19,7 +19,7 @@ export default function Ranking({ onBack }) {
   const [competition, setCompetition] = useState({
     isActive: false, totalSeconds: 300, remainingSeconds: 300, prepPhase: false,
   });
-  const [prepCountdown, setPrepCountdown] = useState(5);
+  const [prepCountdown, setPrepCountdown] = useState(3);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
@@ -119,12 +119,12 @@ export default function Ranking({ onBack }) {
 
   // ── 预备倒计时 ──
   const [isPrepPhase, setIsPrepPhase] = useState(false);
-  const [localPrepCountdown, setLocalPrepCountdown] = useState(5);
+  const [localPrepCountdown, setLocalPrepCountdown] = useState(3);
 
   useEffect(() => {
     if (competition.prepPhase && !isPrepPhase) {
       setIsPrepPhase(true);
-      setLocalPrepCountdown(5);
+      setLocalPrepCountdown(3);
     }
   }, [competition.prepPhase]);
 
@@ -134,11 +134,21 @@ export default function Ranking({ onBack }) {
       i = setInterval(() => setLocalPrepCountdown(c => c - 1), 1000);
     } else if (isPrepPhase && localPrepCountdown === 0) {
       setIsPrepPhase(false);
-      setLocalPrepCountdown(5);
+      setLocalPrepCountdown(3);
       startCompetition(300);
     }
     return () => clearInterval(i);
   }, [isPrepPhase, localPrepCountdown]);
+
+  // ── 倒计时音效：每次递减 beep，归零 Go! ──
+  useEffect(() => {
+    if (!isPrepPhase) return;
+    if (localPrepCountdown === 2 || localPrepCountdown === 1) {
+      SoundManager.playCountdownBeep();
+    } else if (localPrepCountdown === 0) {
+      SoundManager.playGo();
+    }
+  }, [localPrepCountdown, isPrepPhase]);
 
   // ── GSAP 火焰动画层 ──
 
@@ -261,7 +271,7 @@ export default function Ranking({ onBack }) {
     try {
       await startPrepPhase();
       setIsPrepPhase(true);
-      setLocalPrepCountdown(5);
+      setLocalPrepCountdown(3);
     } catch { /* 降级 */ }
     await loadAll();
   };
@@ -271,7 +281,7 @@ export default function Ranking({ onBack }) {
     try {
       await resetCompetition();
       setIsPrepPhase(false);
-      setLocalPrepCountdown(5);
+      setLocalPrepCountdown(3);
     } catch { /* 降级 */ }
     await loadAll();
   };
@@ -320,7 +330,7 @@ export default function Ranking({ onBack }) {
       {/* 火焰粒子 Canvas 层 */}
       <RankingFire activePlayers={activePlayers} topCardRefs={cardRefs} />
 
-      <div className="max-w-3xl mx-auto relative z-10">
+      <div className="max-w-5xl mx-auto relative z-10">
         {/* 顶部 */}
         <div className="flex items-center justify-between mb-6">
           <button
@@ -403,7 +413,7 @@ export default function Ranking({ onBack }) {
         </div>
 
         {/* 垂直排名列表 */}
-        <div className="space-y-3" ref={playerListRef}>
+        <div className="space-y-4" ref={playerListRef}>
           {activePlayers.length === 0 && (
             <div className="text-center text-slate-500 py-12 text-lg">
               🔥 暂无选手数据，开始挑战后这里会燃起来！
@@ -434,7 +444,7 @@ export default function Ranking({ onBack }) {
               <div
                 key={playerId}
                 ref={setCardRef}
-                className={`relative overflow-hidden rounded-2xl p-4 bg-gradient-to-r from-white/10 to-white/5 border border-white/20
+                className={`relative overflow-hidden rounded-2xl p-5 bg-gradient-to-r from-white/10 to-white/5 border border-white/20
                   transition-all duration-500 ease-in-out
                   ${anim ? 'translate-y-0 opacity-100' : ''}
                   ${fireGlowClass(fireLv)}
@@ -466,9 +476,9 @@ export default function Ranking({ onBack }) {
 
                 <div className="flex items-center gap-4 relative z-10">
                   {/* 排名圆标 */}
-                  <div className={`flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br ${rc.bg} flex items-center justify-center shadow-lg ${index === 0 ? 'crown-blaze' : ''}`}>
+                  <div className={`flex-shrink-0 w-14 h-14 rounded-full bg-gradient-to-br ${rc.bg} flex items-center justify-center shadow-lg ${index === 0 ? 'crown-blaze' : ''}`}>
                     {index < 3 ? (
-                      <Icon name={rc.icon} className={`w-6 h-6 ${rc.text}`} />
+                      <Icon name={rc.icon} className={`w-7 h-7 ${rc.text}`} />
                     ) : (
                       <span className="text-white font-bold text-lg">{index + 1}</span>
                     )}
@@ -477,7 +487,7 @@ export default function Ranking({ onBack }) {
                   {/* 选手信息 */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-bold text-white truncate">{player.name}</h3>
+                      <h3 className="text-xl font-bold text-white truncate">{player.name}</h3>
                       {player.isCompleted && (
                         <span className="inline-block px-2 py-0.5 bg-yellow-400/20 text-yellow-400 text-xs rounded-full flex-shrink-0">
                           已通关
@@ -485,7 +495,7 @@ export default function Ranking({ onBack }) {
                       )}
                     </div>
                     {/* 火焰进度条 */}
-                    <div className="mt-1 w-full h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div className="mt-1 w-full h-2.5 bg-slate-700/50 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${fireLv !== 'cold' ? 'progress-lava' : 'bg-gradient-to-r from-teal-400 to-emerald-400'}`}
                         style={{ width: `${player.progress ?? 0}%` }}
@@ -500,7 +510,7 @@ export default function Ranking({ onBack }) {
                       <p className={`text-xs font-medium ${fireLv === 'inferno' ? 'text-yellow-300' : fireLv === 'cold' ? 'text-slate-400' : 'text-emerald-300'}`}>积分</p>
                       <p
                         ref={el => { if (el && playerId) scoreElRefs.current[playerId] = el; }}
-                        className={`font-mono font-bold text-lg tabular-nums transition-all duration-300 ${fireLv === 'inferno' ? 'text-yellow-300' : fireLv === 'cold' ? 'text-slate-400' : 'text-emerald-300'}`}
+                        className={`font-mono font-bold text-xl tabular-nums transition-all duration-300 ${fireLv === 'inferno' ? 'text-yellow-300' : fireLv === 'cold' ? 'text-slate-400' : 'text-emerald-300'}`}
                       >
                         {score}
                       </p>

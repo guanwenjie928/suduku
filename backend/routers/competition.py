@@ -72,7 +72,7 @@ def start_competition(body: CompetitionStart, db: Session = Depends(get_db)):
 @router.post("/prep")
 def start_prep(db: Session = Depends(get_db)):
     """
-    进入预备阶段（5 秒倒计时）
+    进入预备阶段（3 秒倒计时）
     """
     comp = _get_or_create_competition(db)
     comp.prep_phase = 1
