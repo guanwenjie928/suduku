@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Player, LevelDetail, HistoryRecord
+from models import Player, LevelDetail
 from schemas import LevelDetailSubmit, GameCompleteRequest
 
 router = APIRouter(prefix="/api/v1/games", tags=["games"])
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/v1/games", tags=["games"])
 def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
     """
     提交单关成绩 —— 每完成一关立即调用
+    total_time 累加计算
     """
     player = db.query(Player).filter(Player.name == body.player_name).first()
     if not player:
@@ -43,10 +44,10 @@ def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
         )
         db.add(detail)
 
-    # 更新选手进度
+    # 更新选手进度（total_time 累加）
     player.current_level = body.level - 1  # 转成 0-based 下标
     player.progress = int((body.level / 4) * 100)
-    player.total_time = body.time_seconds
+    player.total_time = player.total_time + body.time_seconds  # 累加，而非覆盖
     player.is_completed = 0  # 还没完全通关
 
     db.commit()
@@ -60,7 +61,7 @@ def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
 @router.post("/complete")
 def complete_game(body: GameCompleteRequest, db: Session = Depends(get_db)):
     """
-    全部通关 —— 写入历史排行榜
+    全部通关 —— 更新选手状态为已完成
     """
     player = db.query(Player).filter(Player.name == body.player_name).first()
     if not player:
@@ -69,23 +70,11 @@ def complete_game(body: GameCompleteRequest, db: Session = Depends(get_db)):
     # 更新选手为已完成
     player.is_completed = 1
     player.progress = 100
-    player.total_time = body.total_time
     player.current_level = body.completed_levels  # 已完成的总关数（1-based）
 
-    # 写入历史记录
-    record = HistoryRecord(
-        player_name=body.player_name,
-        completed_levels=body.completed_levels,
-        total_time=body.total_time,
-        wrong_cells=body.wrong_cells,
-        empty_cells=body.empty_cells,
-    )
-    db.add(record)
     db.commit()
-    db.refresh(record)
 
     return {
-        "message": f"🎉 {body.player_name} 全部通关！成绩已写入历史排行榜",
-        "record": record.to_dict(),
+        "message": f"🎉 {body.player_name} 全部通关！",
         "success": True,
     }

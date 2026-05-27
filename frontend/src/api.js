@@ -45,9 +45,9 @@ function lsSet(key, val) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // 选手 API
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 
 export async function fetchPlayers() {
   try {
@@ -92,9 +92,9 @@ export async function createPlayer(name) {
   }
 }
 
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // 游戏 API
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 
 export async function submitLevel({ player_name, level, time_seconds, empty_cells, wrong_cells }) {
   try {
@@ -108,7 +108,7 @@ export async function submitLevel({ player_name, level, time_seconds, empty_cell
     if (idx >= 0) {
       players[idx].currentLevel = level;
       players[idx].progress = Math.round((level / 4) * 100);
-      players[idx].totalTime = time_seconds;
+      players[idx].totalTime = (players[idx].totalTime || 0) + time_seconds; // 本地也累加
       players[idx].levelDetails = players[idx].levelDetails || [];
       const detailIdx = players[idx].levelDetails.findIndex(d => d.level === level);
       if (detailIdx >= 0) {
@@ -125,7 +125,7 @@ export async function submitLevel({ player_name, level, time_seconds, empty_cell
     if (idx >= 0) {
       players[idx].currentLevel = level;
       players[idx].progress = Math.round((level / 4) * 100);
-      players[idx].totalTime = time_seconds;
+      players[idx].totalTime = (players[idx].totalTime || 0) + time_seconds;
       players[idx].levelDetails = players[idx].levelDetails || [];
       players[idx].levelDetails.push({ level, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, completedAt: new Date().toISOString() });
       lsSet('sudoku_activePlayers', players);
@@ -134,44 +134,21 @@ export async function submitLevel({ player_name, level, time_seconds, empty_cell
   }
 }
 
-export async function completeGame({ player_name, completed_levels, total_time, wrong_cells, empty_cells }) {
+export async function completeGame({ player_name, completed_levels }) {
   try {
     const data = await request(`${BASE}/games/complete`, {
       method: 'POST',
-      body: JSON.stringify({ player_name, completed_levels, total_time, wrong_cells, empty_cells }),
+      body: JSON.stringify({ player_name, completed_levels }),
     });
-    // 同时更新本地历史记录
-    const records = lsGet('sudoku_historyRecords') || [];
-    records.unshift({
-      id: Date.now(),
-      name: player_name,
-      completedLevels: completed_levels,
-      totalTime: total_time,
-      wrongCells: wrong_cells,
-      emptyCells: empty_cells,
-      date: new Date().toISOString(),
-    });
-    lsSet('sudoku_historyRecords', records);
     return data;
   } catch {
-    const records = lsGet('sudoku_historyRecords') || [];
-    records.unshift({
-      id: Date.now(),
-      name: player_name,
-      completedLevels: completed_levels,
-      totalTime: total_time,
-      wrongCells: wrong_cells,
-      emptyCells: empty_cells,
-      date: new Date().toISOString(),
-    });
-    lsSet('sudoku_historyRecords', records);
-    return { message: '离线模式：通关记录已本地保存', success: true };
+    return { message: '离线模式：通关状态已更新', success: true };
   }
 }
 
-// ═══════════════════════════════════════════════
-// 排行榜 API
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// 排行榜 API（仅实时排行）
+// ══════════════════════════════════════════════
 
 export async function fetchActiveLeaderboard() {
   try {
@@ -183,19 +160,9 @@ export async function fetchActiveLeaderboard() {
   }
 }
 
-export async function fetchHistoryLeaderboard() {
-  try {
-    const data = await request(`${BASE}/leaderboard/history`);
-    lsSet('sudoku_historyRecords', data);
-    return data;
-  } catch {
-    return lsGet('sudoku_historyRecords') || [];
-  }
-}
-
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // 比赛计时 API
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 
 export async function fetchCompetitionStatus() {
   try {
@@ -248,9 +215,9 @@ export async function resetCompetition() {
   }
 }
 
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // 数据清理
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 
 export async function clearAllData() {
   try {
@@ -258,14 +225,12 @@ export async function clearAllData() {
     const res = await request(`${BASE}/admin/clear`, { method: 'DELETE' });
     // 再清本地
     localStorage.removeItem('sudoku_activePlayers');
-    localStorage.removeItem('sudoku_historyRecords');
     localStorage.removeItem('sudoku_competition');
     localStorage.removeItem('sudoku_hasCleared');
     return res;
   } catch (e) {
     console.warn('[API] 后端清空失败，仅清本地:', e.message);
     localStorage.removeItem('sudoku_activePlayers');
-    localStorage.removeItem('sudoku_historyRecords');
     localStorage.removeItem('sudoku_competition');
     localStorage.removeItem('sudoku_hasCleared');
     return { message: '本地数据已清除（后端不可用）', success: true };

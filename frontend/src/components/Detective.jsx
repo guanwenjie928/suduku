@@ -106,15 +106,12 @@ export default function Detective({ onBack, showToast }) {
       SoundManager.playVictory();
       SoundManager.stopBGM();
 
-      // 全部通关 —— 写入历史排行榜
+      // 全部通关 —— 标记玩家完成状态
       if (playerName) {
         try {
           await completeGame({
             player_name: playerName,
             completed_levels: LEVELS.length,
-            total_time: seconds,
-            wrong_cells: totalWrongCells + wc,
-            empty_cells: totalEmptyCells + ec,
           });
         } catch { /* 降级已在 api.js 处理 */ }
       }

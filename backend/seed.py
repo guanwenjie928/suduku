@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database import engine, SessionLocal, Base, MYSQL_DATABASE
-from models import Player, LevelDetail, Competition, HistoryRecord
+from models import Player, LevelDetail, Competition
 from sqlalchemy import text
 
 
@@ -71,22 +71,6 @@ def seed_data():
                         empty_cells=lv % 2,
                         wrong_cells=1 if lv == 3 else 0,
                     ))
-
-        # 历史记录
-        db.add(HistoryRecord(
-            player_name="第二小组",
-            completed_levels=4,
-            total_time=312,
-            wrong_cells=1,
-            empty_cells=2,
-        ))
-        db.add(HistoryRecord(
-            player_name="第五小组",
-            completed_levels=4,
-            total_time=425,
-            wrong_cells=2,
-            empty_cells=3,
-        ))
 
         db.commit()
         print("✓ 种子数据已填充")

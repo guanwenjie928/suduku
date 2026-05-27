@@ -40,14 +40,13 @@ def health_check():
 def clear_all_data():
     """清空所有数据（谨慎使用）"""
     from database import SessionLocal
-    from models import Player, LevelDetail, Competition, HistoryRecord
+    from models import Player, LevelDetail, Competition
     from sqlalchemy import delete
     
     db = SessionLocal()
     try:
         # 按依赖顺序删除（先子表再父表）
         db.execute(delete(LevelDetail))
-        db.execute(delete(HistoryRecord))
         db.execute(delete(Player))
         db.execute(delete(Competition))
         db.commit()
