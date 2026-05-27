@@ -3,6 +3,7 @@ import { useGSAP } from '@gsap/react';
 import { gsap } from 'gsap';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
+import RankingFire from './RankingFire';
 import './ranking-fire.css';
 import {
   fetchActiveLeaderboard,
@@ -141,35 +142,35 @@ export default function Ranking({ onBack }) {
 
   // ── GSAP 火焰动画层 ──
 
-  // 1. 积分变化 → 微弹跳（克制版）
+  // 1. 积分变化 → 火焰爆发
   useGSAP(() => {
     activePlayers.forEach(player => {
       const id = player.id || player.name;
       const prev = prevScoresRef.current[id];
       if (prev !== undefined && prev !== player.score) {
-        // 积分数字微弹跳
+        // 积分变化 → 积分数字弹跳
         const el = scoreElRefs.current[id];
         if (el) {
           gsap.fromTo(el,
-            { scale: 1 },
-            { scale: 1.12, duration: 0.2, ease: 'power2.out',
+            { scale: 1, textShadow: '0 0 0px rgba(251,191,36,0)' },
+            { scale: 1.4, textShadow: '0 0 30px rgba(251,191,36,0.8)', duration: 0.25, ease: 'power2.out',
               onComplete: () => {
-                gsap.to(el, { scale: 1, duration: 0.25, ease: 'power2.in' });
+                gsap.to(el, { scale: 1, textShadow: '0 0 0px rgba(251,191,36,0)', duration: 0.3, ease: 'power2.in' });
               }
             }
           );
         }
 
-        // 卡片边框微闪
+        // 卡片光晕爆发
         const card = cardRefs.current[id];
         if (card) {
           const delta = player.score - prev;
-          const glowColor = delta > 0 ? 'rgba(74,222,128,0.25)' : 'rgba(239,68,68,0.25)';
+          const glowColor = delta > 0 ? 'rgba(74,222,128,0.7)' : 'rgba(239,68,68,0.7)';
           gsap.fromTo(card,
-            { boxShadow: '0 0 0px rgba(0,0,0,0)' },
-            { boxShadow: `0 0 12px ${glowColor}`, duration: 0.2, ease: 'power2.out',
+            { boxShadow: `0 0 0px ${glowColor.replace('0.7', '0')}` },
+            { boxShadow: `0 0 60px ${glowColor}`, duration: 0.25, ease: 'power2.out',
               onComplete: () => {
-                gsap.to(card, { boxShadow: '0 0 4px rgba(251,146,60,0.1)', duration: 0.4, ease: 'power2.in' });
+                gsap.to(card, { boxShadow: '0 0 20px rgba(251,146,60,0.3)', duration: 0.5, ease: 'power2.in' });
               }
             }
           );
@@ -179,7 +180,7 @@ export default function Ranking({ onBack }) {
     });
   }, [activePlayers]);
 
-  // 2. 排名变化动画 (克制版换位反馈)
+  // 2. 排名变化动画 (FLIP 风格换位)
   useGSAP(() => {
     const cards = Object.values(cardRefs.current).filter(Boolean);
     if (cards.length < 2) return;
@@ -191,51 +192,68 @@ export default function Ranking({ onBack }) {
 
       const delta = anim.toRank - anim.fromRank;
       if (delta < 0) {
-        // 排名上升 → 微弱绿边闪
+        // 排名上升 → 绿焰 + 上飘
         gsap.fromTo(card,
-          { borderColor: 'rgba(255,255,255,0.15)' },
-          { borderColor: 'rgba(74,222,128,0.4)', duration: 0.35, ease: 'power2.out',
+          { boxShadow: '0 0 0px rgba(74,222,128,0)', borderColor: 'rgba(255,255,255,0.1)' },
+          { boxShadow: '0 0 60px rgba(74,222,128,0.8)', borderColor: 'rgba(74,222,128,0.8)', duration: 0.4, ease: 'power2.out',
             onComplete: () => {
-              gsap.to(card, { borderColor: 'rgba(255,255,255,0.15)', duration: 0.5 });
+              gsap.to(card, { boxShadow: '0 0 20px rgba(251,146,60,0.3)', borderColor: 'rgba(255,255,255,0.15)', duration: 0.6 });
             }
           }
         );
       } else if (delta > 0) {
-        // 排名下降 → 微抖 (不留红)
+        // 排名下降 → 红闪抖动
         gsap.to(card, {
-          x: [-2, 2, -1, 1, 0],
-          duration: 0.4,
+          x: [-4, 4, -3, 3, -1, 0],
+          boxShadow: ['0 0 30px rgba(239,68,68,0.5)', '0 0 20px rgba(251,146,60,0.3)'],
+          duration: 0.5,
           ease: 'power2.out',
         });
       }
     });
   }, [rankAnim]);
 
-  // 3. 新小组柔和入场
+  // 3. 新小组点火动画
   useEffect(() => {
     const currentIds = new Set(activePlayers.map(p => p.id || p.name));
     activePlayers.forEach(player => {
       const id = player.id || player.name;
       if (!newPlayerIdsRef.current.has(id) && id) {
+        // 新小组 → 标记并在下次渲染后触发点火
         newPlayerIdsRef.current.add(id);
         setTimeout(() => {
           const card = cardRefs.current[id];
           if (card) {
             gsap.fromTo(card,
-              { scale: 0.92, opacity: 0 },
-              { scale: 1, opacity: 1, duration: 0.4, ease: 'power2.out' }
+              { scale: 0.8, opacity: 0, filter: 'brightness(0.3) blur(4px)' },
+              { scale: 1, opacity: 1, filter: 'brightness(1) blur(0px)', duration: 0.7, ease: 'back.out(1.5)' }
             );
           }
         }, 50);
       }
     });
+    // 清理已不在列表中的小组
     newPlayerIdsRef.current.forEach(id => {
       if (!currentIds.has(id)) newPlayerIdsRef.current.delete(id);
     });
   }, [activePlayers]);
 
-  // 4. 计时器末段提示 — 纯 CSS 颜色切换，不用 GSAP 循环光效
-  const isTimerUrgent = competition.remainingSeconds <= 60 && competition.remainingSeconds > 0 && competition.isActive;
+  // 4. 计时器熔岩模式
+  useGSAP(() => {
+    if (competition.remainingSeconds <= 60 && competition.remainingSeconds > 0 && competition.isActive) {
+      const timer = document.querySelector('.timer-lava-target');
+      if (timer) {
+        gsap.to(timer, {
+          color: '#ef4444',
+          textShadow: '0 0 20px #ef4444, 0 0 40px #dc2626',
+          duration: 0.4,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+        });
+      }
+    }
+  }, [competition.remainingSeconds]);
 
   // ── 操作 ──
   const handleStartPrep = async () => {
@@ -288,7 +306,7 @@ export default function Ranking({ onBack }) {
   };
 
   const fireGlowClass = (level) => {
-    const map = { cold: '', warm: 'glow-active', burning: 'glow-active', blazing: 'glow-active', inferno: 'glow-active' };
+    const map = { cold: '', warm: 'glow-warm', burning: 'glow-burning', blazing: 'glow-blazing', inferno: 'glow-inferno fire-pulse' };
     return map[level] || '';
   };
 
@@ -298,8 +316,11 @@ export default function Ranking({ onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <div className="max-w-3xl mx-auto">
+    <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 transition-all duration-1000 ${competition.remainingSeconds <= 60 && competition.isActive ? 'vignette-danger' : ''}`}>
+      {/* 火焰粒子 Canvas 层 */}
+      <RankingFire activePlayers={activePlayers} topCardRefs={cardRefs} />
+
+      <div className="max-w-3xl mx-auto relative z-10">
         {/* 顶部 */}
         <div className="flex items-center justify-between mb-6">
           <button
@@ -310,7 +331,7 @@ export default function Ranking({ onBack }) {
           </button>
           <div className="text-center">
             <h1 className="text-3xl font-bold text-white flex items-center justify-center gap-3">
-              <span className="inline-block rounded-full p-1">
+              <span className="crown-blaze inline-block rounded-full p-1">
                 <Icon name="Crown" className="w-10 h-10 text-yellow-400" />
               </span>
               王牌侦探排行榜
@@ -336,8 +357,8 @@ export default function Ranking({ onBack }) {
         {/* 比赛控制栏 */}
         <div className="flex items-center justify-between mb-6 px-4 py-3 bg-white/5 rounded-2xl border border-white/10">
           <div className="flex items-center gap-3">
-            <span className={isTimerUrgent ? 'text-red-400' : ''}>
-              <Icon name="Trophy" className={`w-6 h-6 ${isTimerUrgent ? 'text-red-400' : 'text-yellow-400'}`} />
+            <span className={competition.remainingSeconds <= 60 && competition.isActive ? 'timer-lava-mode' : ''}>
+              <Icon name="Trophy" className={`w-6 h-6 ${competition.remainingSeconds <= 60 && competition.isActive ? 'text-red-400' : 'text-yellow-400'}`} />
             </span>
             <span className="text-white font-bold">实时竞技</span>
             <span className="text-slate-400 text-sm">({activePlayers.length}人)</span>
@@ -354,8 +375,8 @@ export default function Ranking({ onBack }) {
                   ? 'bg-emerald-500/20 border-emerald-500/30'
                   : 'bg-slate-500/20 border-slate-500/30'
               }`}>
-                <Icon name="Clock" className={`w-4 h-4 ${isTimerUrgent ? 'text-red-400' : 'text-white'}`} />
-                <span className={`font-mono font-bold transition-colors duration-300 ${isTimerUrgent ? 'text-red-400' : 'text-white'}`}>
+                <Icon name="Clock" className={`w-4 h-4 ${competition.remainingSeconds <= 60 && competition.isActive ? 'text-red-400' : 'text-white'}`} />
+                <span className={`font-mono font-bold text-white transition-all duration-300 ${competition.remainingSeconds <= 60 && competition.isActive ? 'timer-lava-target' : ''}`}>
                   {competition.isActive
                     ? formatTime(competition.remainingSeconds)
                     : formatTime(competition.totalSeconds)}
@@ -385,7 +406,7 @@ export default function Ranking({ onBack }) {
         <div className="space-y-3" ref={playerListRef}>
           {activePlayers.length === 0 && (
             <div className="text-center text-slate-500 py-12 text-lg">
-              暂无选手数据，开始挑战后这里会实时显示排名
+              🔥 暂无选手数据，开始挑战后这里会燃起来！
             </div>
           )}
           {activePlayers.map((player, index) => {
@@ -398,11 +419,11 @@ export default function Ranking({ onBack }) {
             const score = player.score ?? 0;
             const fireLv = getFireLevel(score, index);
 
-            // TOP3 微光环 (静态，不脉动)
+            // 火焰边框特效
             let fireBorderClass = '';
-            if (index === 0) fireBorderClass = 'glow-crown';
-            else if (index === 1) fireBorderClass = 'glow-silver';
-            else if (index === 2) fireBorderClass = 'glow-bronze';
+            if (index === 0) fireBorderClass = 'crown-blaze';
+            else if (index === 1) fireBorderClass = 'silver-blaze';
+            else if (index === 2) fireBorderClass = 'bronze-blaze';
 
             // 卡片注册回调
             const setCardRef = (el) => {
@@ -429,23 +450,23 @@ export default function Ranking({ onBack }) {
                     : {}
                 }
               >
-                {/* 热力背景叠加层 (极淡) */}
+                {/* 热力背景叠加层 */}
                 {fireLv !== 'cold' && (
                   <div
-                    className="absolute inset-0 pointer-events-none opacity-10"
+                    className="absolute inset-0 pointer-events-none opacity-30"
                     style={{
                       background: fireLv === 'inferno'
-                        ? 'radial-gradient(ellipse at center, rgba(251,191,36,0.12) 0%, transparent 60%)'
+                        ? 'radial-gradient(ellipse at center, rgba(251,191,36,0.2) 0%, rgba(239,68,68,0.1) 50%, transparent 70%)'
                         : fireLv === 'blazing'
-                        ? 'radial-gradient(ellipse at center, rgba(251,146,60,0.08) 0%, transparent 50%)'
-                        : 'radial-gradient(ellipse at center, rgba(251,146,60,0.05) 0%, transparent 40%)',
+                        ? 'radial-gradient(ellipse at center, rgba(251,146,60,0.15) 0%, transparent 60%)'
+                        : 'radial-gradient(ellipse at center, rgba(251,146,60,0.08) 0%, transparent 50%)',
                     }}
                   />
                 )}
 
                 <div className="flex items-center gap-4 relative z-10">
                   {/* 排名圆标 */}
-                  <div className={`flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br ${rc.bg} flex items-center justify-center shadow-lg`}>
+                  <div className={`flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br ${rc.bg} flex items-center justify-center shadow-lg ${index === 0 ? 'crown-blaze' : ''}`}>
                     {index < 3 ? (
                       <Icon name={rc.icon} className={`w-6 h-6 ${rc.text}`} />
                     ) : (
@@ -466,7 +487,7 @@ export default function Ranking({ onBack }) {
                     {/* 火焰进度条 */}
                     <div className="mt-1 w-full h-2 bg-slate-700/50 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${fireLv !== 'cold' ? 'progress-warm' : 'bg-gradient-to-r from-teal-400 to-emerald-400'}`}
+                        className={`h-full rounded-full transition-all duration-500 ${fireLv !== 'cold' ? 'progress-lava' : 'bg-gradient-to-r from-teal-400 to-emerald-400'}`}
                         style={{ width: `${player.progress ?? 0}%` }}
                       />
                     </div>
@@ -505,7 +526,7 @@ export default function Ranking({ onBack }) {
                       return (
                         <div
                           key={lv}
-                          className={`w-3 h-3 rounded-full transition-all duration-300 ${done ? 'bg-gradient-to-br from-emerald-400 to-teal-500' : 'bg-slate-600'}`}
+                          className={`w-3 h-3 rounded-full transition-all duration-300 ${done ? `bg-gradient-to-br from-emerald-400 to-teal-500 ${fireLv !== 'cold' ? 'shadow-md shadow-emerald-400/50' : ''}` : 'bg-slate-600'}`}
                         />
                       );
                     })}
