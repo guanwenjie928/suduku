@@ -1,0 +1,34 @@
+# 数独侦探 —— Systemd 服务文件
+# 用法：sudo cp sudoku-detective.service /etc/systemd/system/
+#       sudo systemctl daemon-reload
+#       sudo systemctl enable --now sudoku-detective
+#
+# API_PORT 由 deploy.sh 自动替换为实际端口
+
+[Unit]
+Description=数独侦探 API 服务
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/sudoku-detective/backend
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 127.0.0.1 --port API_PORT
+Restart=always
+RestartSec=3
+
+# 环境变量
+Environment=MYSQL_HOST=127.0.0.1
+Environment=MYSQL_PORT=3306
+Environment=MYSQL_USER=sudoku
+Environment=MYSQL_PASSWORD=sudoku123
+Environment=MYSQL_DATABASE=sudoku_detective
+Environment=PYTHONUNBUFFERED=1
+
+# 日志
+StandardOutput=append:/var/log/sudoku-detective.log
+StandardError=append:/var/log/sudoku-detective-error.log
+
+[Install]
+WantedBy=multi-user.target
