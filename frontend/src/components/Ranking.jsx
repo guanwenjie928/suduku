@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useGSAP } from '@gsap/react';
+import { gsap } from 'gsap';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
+import RankingFire from './RankingFire';
+import './ranking-fire.css';
 import {
   fetchActiveLeaderboard,
   fetchCompetitionStatus,
@@ -22,6 +26,13 @@ export default function Ranking({ onBack }) {
   // 用于动画：记录上一次排名顺序
   const prevOrderRef = useRef([]);
   const [rankAnim, setRankAnim] = useState({}); // { playerId: { fromRank, toRank } }
+
+  // ── 火焰效果专用 refs ──
+  const cardRefs = useRef({});       // 小组卡片 DOM 引用
+  const prevScoresRef = useRef({});   // 上一次分数快照
+  const scoreElRefs = useRef({});     // 积分数字 DOM 引用
+  const newPlayerIdsRef = useRef(new Set()); // 新加入的小组
+  const playerListRef = useRef(null); // 排名列表容器
 
   // ── 数据轮询 ──
   const loadAll = useCallback(async () => {
@@ -129,6 +140,121 @@ export default function Ranking({ onBack }) {
     return () => clearInterval(i);
   }, [isPrepPhase, localPrepCountdown]);
 
+  // ── GSAP 火焰动画层 ──
+
+  // 1. 积分变化 → 火焰爆发
+  useGSAP(() => {
+    activePlayers.forEach(player => {
+      const id = player.id || player.name;
+      const prev = prevScoresRef.current[id];
+      if (prev !== undefined && prev !== player.score) {
+        // 积分变化 → 积分数字弹跳
+        const el = scoreElRefs.current[id];
+        if (el) {
+          gsap.fromTo(el,
+            { scale: 1, textShadow: '0 0 0px rgba(251,191,36,0)' },
+            { scale: 1.4, textShadow: '0 0 30px rgba(251,191,36,0.8)', duration: 0.25, ease: 'power2.out',
+              onComplete: () => {
+                gsap.to(el, { scale: 1, textShadow: '0 0 0px rgba(251,191,36,0)', duration: 0.3, ease: 'power2.in' });
+              }
+            }
+          );
+        }
+
+        // 卡片光晕爆发
+        const card = cardRefs.current[id];
+        if (card) {
+          const delta = player.score - prev;
+          const glowColor = delta > 0 ? 'rgba(74,222,128,0.7)' : 'rgba(239,68,68,0.7)';
+          gsap.fromTo(card,
+            { boxShadow: `0 0 0px ${glowColor.replace('0.7', '0')}` },
+            { boxShadow: `0 0 60px ${glowColor}`, duration: 0.25, ease: 'power2.out',
+              onComplete: () => {
+                gsap.to(card, { boxShadow: '0 0 20px rgba(251,146,60,0.3)', duration: 0.5, ease: 'power2.in' });
+              }
+            }
+          );
+        }
+      }
+      prevScoresRef.current[id] = player.score;
+    });
+  }, [activePlayers]);
+
+  // 2. 排名变化动画 (FLIP 风格换位)
+  useGSAP(() => {
+    const cards = Object.values(cardRefs.current).filter(Boolean);
+    if (cards.length < 2) return;
+
+    cards.forEach(card => {
+      const playerId = Object.keys(cardRefs.current).find(k => cardRefs.current[k] === card);
+      const anim = rankAnim[playerId];
+      if (!anim) return;
+
+      const delta = anim.toRank - anim.fromRank;
+      if (delta < 0) {
+        // 排名上升 → 绿焰 + 上飘
+        gsap.fromTo(card,
+          { boxShadow: '0 0 0px rgba(74,222,128,0)', borderColor: 'rgba(255,255,255,0.1)' },
+          { boxShadow: '0 0 60px rgba(74,222,128,0.8)', borderColor: 'rgba(74,222,128,0.8)', duration: 0.4, ease: 'power2.out',
+            onComplete: () => {
+              gsap.to(card, { boxShadow: '0 0 20px rgba(251,146,60,0.3)', borderColor: 'rgba(255,255,255,0.15)', duration: 0.6 });
+            }
+          }
+        );
+      } else if (delta > 0) {
+        // 排名下降 → 红闪抖动
+        gsap.to(card, {
+          x: [-4, 4, -3, 3, -1, 0],
+          boxShadow: ['0 0 30px rgba(239,68,68,0.5)', '0 0 20px rgba(251,146,60,0.3)'],
+          duration: 0.5,
+          ease: 'power2.out',
+        });
+      }
+    });
+  }, [rankAnim]);
+
+  // 3. 新小组点火动画
+  useEffect(() => {
+    const currentIds = new Set(activePlayers.map(p => p.id || p.name));
+    activePlayers.forEach(player => {
+      const id = player.id || player.name;
+      if (!newPlayerIdsRef.current.has(id) && id) {
+        // 新小组 → 标记并在下次渲染后触发点火
+        newPlayerIdsRef.current.add(id);
+        setTimeout(() => {
+          const card = cardRefs.current[id];
+          if (card) {
+            gsap.fromTo(card,
+              { scale: 0.8, opacity: 0, filter: 'brightness(0.3) blur(4px)' },
+              { scale: 1, opacity: 1, filter: 'brightness(1) blur(0px)', duration: 0.7, ease: 'back.out(1.5)' }
+            );
+          }
+        }, 50);
+      }
+    });
+    // 清理已不在列表中的小组
+    newPlayerIdsRef.current.forEach(id => {
+      if (!currentIds.has(id)) newPlayerIdsRef.current.delete(id);
+    });
+  }, [activePlayers]);
+
+  // 4. 计时器熔岩模式
+  useGSAP(() => {
+    if (competition.remainingSeconds <= 60 && competition.remainingSeconds > 0 && competition.isActive) {
+      const timer = document.querySelector('.timer-lava-target');
+      if (timer) {
+        gsap.to(timer, {
+          color: '#ef4444',
+          textShadow: '0 0 20px #ef4444, 0 0 40px #dc2626',
+          duration: 0.4,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+        });
+      }
+    }
+  }, [competition.remainingSeconds]);
+
   // ── 操作 ──
   const handleStartPrep = async () => {
     SoundManager.playClick();
@@ -170,20 +296,44 @@ export default function Ranking({ onBack }) {
     { bg: 'from-amber-600 to-orange-700', icon: 'Star', text: 'text-amber-100' },
   ];
 
+  // 火焰等级计算 (纯渲染辅助，不改变任何数据)
+  const getFireLevel = (score, index) => {
+    if (score >= 3000) return 'inferno';
+    if (score >= 2000) return 'blazing';
+    if (score >= 1000) return 'burning';
+    if (score > 0) return 'warm';
+    return 'cold';
+  };
+
+  const fireGlowClass = (level) => {
+    const map = { cold: '', warm: 'glow-warm', burning: 'glow-burning', blazing: 'glow-blazing', inferno: 'glow-inferno fire-pulse' };
+    return map[level] || '';
+  };
+
+  const scoreCardClass = (level) => {
+    const map = { cold: 'score-cold', warm: 'score-warm', burning: 'score-burning', blazing: 'score-blazing', inferno: 'score-inferno' };
+    return map[level] || 'score-cold';
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <div className="max-w-3xl mx-auto">
+    <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 transition-all duration-1000 ${competition.remainingSeconds <= 60 && competition.isActive ? 'vignette-danger' : ''}`}>
+      {/* 火焰粒子 Canvas 层 */}
+      <RankingFire activePlayers={activePlayers} topCardRefs={cardRefs} />
+
+      <div className="max-w-3xl mx-auto relative z-10">
         {/* 顶部 */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm rounded-xl text-white hover:bg-white/20 border border-white/20"
+            className="flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm rounded-xl text-white hover:bg-white/20 border border-white/20 transition-all duration-300"
           >
             <Icon name="ArrowLeft" className="w-5 h-5" />返回
           </button>
           <div className="text-center">
             <h1 className="text-3xl font-bold text-white flex items-center justify-center gap-3">
-              <Icon name="Crown" className="w-10 h-10 text-yellow-400" />
+              <span className="crown-blaze inline-block rounded-full p-1">
+                <Icon name="Crown" className="w-10 h-10 text-yellow-400" />
+              </span>
               王牌侦探排行榜
             </h1>
           </div>
@@ -207,7 +357,9 @@ export default function Ranking({ onBack }) {
         {/* 比赛控制栏 */}
         <div className="flex items-center justify-between mb-6 px-4 py-3 bg-white/5 rounded-2xl border border-white/10">
           <div className="flex items-center gap-3">
-            <Icon name="Trophy" className="w-6 h-6 text-yellow-400" />
+            <span className={competition.remainingSeconds <= 60 && competition.isActive ? 'timer-lava-mode' : ''}>
+              <Icon name="Trophy" className={`w-6 h-6 ${competition.remainingSeconds <= 60 && competition.isActive ? 'text-red-400' : 'text-yellow-400'}`} />
+            </span>
             <span className="text-white font-bold">实时竞技</span>
             <span className="text-slate-400 text-sm">({activePlayers.length}人)</span>
           </div>
@@ -218,13 +370,13 @@ export default function Ranking({ onBack }) {
                 <span className="font-mono font-bold text-amber-400 text-xl">{localPrepCountdown}</span>
               </span>
             ) : (
-              <span className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${
+              <span className={`flex items-center gap-2 px-3 py-1 rounded-lg border transition-all duration-500 ${
                 competition.isActive
                   ? 'bg-emerald-500/20 border-emerald-500/30'
                   : 'bg-slate-500/20 border-slate-500/30'
               }`}>
-                <Icon name="Clock" className="w-4 h-4 text-white" />
-                <span className="font-mono font-bold text-white">
+                <Icon name="Clock" className={`w-4 h-4 ${competition.remainingSeconds <= 60 && competition.isActive ? 'text-red-400' : 'text-white'}`} />
+                <span className={`font-mono font-bold text-white transition-all duration-300 ${competition.remainingSeconds <= 60 && competition.isActive ? 'timer-lava-target' : ''}`}>
                   {competition.isActive
                     ? formatTime(competition.remainingSeconds)
                     : formatTime(competition.totalSeconds)}
@@ -234,7 +386,7 @@ export default function Ranking({ onBack }) {
             {!competition.isActive && !isPrepPhase && (
               <button
                 onClick={handleStartPrep}
-                className="px-4 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium"
+                className="px-4 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/30"
               >
                 开始倒计时
               </button>
@@ -242,7 +394,7 @@ export default function Ranking({ onBack }) {
             {(competition.isActive || isPrepPhase) && (
               <button
                 onClick={handleReset}
-                className="px-4 py-1 bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-medium"
+                className="px-4 py-1 bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-300"
               >
                 重置
               </button>
@@ -251,10 +403,10 @@ export default function Ranking({ onBack }) {
         </div>
 
         {/* 垂直排名列表 */}
-        <div className="space-y-3">
+        <div className="space-y-3" ref={playerListRef}>
           {activePlayers.length === 0 && (
             <div className="text-center text-slate-500 py-12 text-lg">
-              暂无选手数据，开始挑战后这里会实时显示排名
+              🔥 暂无选手数据，开始挑战后这里会燃起来！
             </div>
           )}
           {activePlayers.map((player, index) => {
@@ -263,13 +415,30 @@ export default function Ranking({ onBack }) {
             const totalW = player.wrongCells ?? details.reduce((s, d) => s + (d.wrongCells || 0), 0);
             const totalE = player.emptyCells ?? details.reduce((s, d) => s + (d.emptyCells || 0), 0);
             const anim = rankAnim[player.id || player.name];
+            const playerId = player.id || player.name;
+            const score = player.score ?? 0;
+            const fireLv = getFireLevel(score, index);
+
+            // 火焰边框特效
+            let fireBorderClass = '';
+            if (index === 0) fireBorderClass = 'crown-blaze';
+            else if (index === 1) fireBorderClass = 'silver-blaze';
+            else if (index === 2) fireBorderClass = 'bronze-blaze';
+
+            // 卡片注册回调
+            const setCardRef = (el) => {
+              if (el && playerId) cardRefs.current[playerId] = el;
+            };
 
             return (
               <div
-                key={player.id || player.name}
+                key={playerId}
+                ref={setCardRef}
                 className={`relative overflow-hidden rounded-2xl p-4 bg-gradient-to-r from-white/10 to-white/5 border border-white/20
                   transition-all duration-500 ease-in-out
                   ${anim ? 'translate-y-0 opacity-100' : ''}
+                  ${fireGlowClass(fireLv)}
+                  ${fireBorderClass}
                 `}
                 style={
                   anim
@@ -281,9 +450,23 @@ export default function Ranking({ onBack }) {
                     : {}
                 }
               >
-                <div className="flex items-center gap-4">
+                {/* 热力背景叠加层 */}
+                {fireLv !== 'cold' && (
+                  <div
+                    className="absolute inset-0 pointer-events-none opacity-30"
+                    style={{
+                      background: fireLv === 'inferno'
+                        ? 'radial-gradient(ellipse at center, rgba(251,191,36,0.2) 0%, rgba(239,68,68,0.1) 50%, transparent 70%)'
+                        : fireLv === 'blazing'
+                        ? 'radial-gradient(ellipse at center, rgba(251,146,60,0.15) 0%, transparent 60%)'
+                        : 'radial-gradient(ellipse at center, rgba(251,146,60,0.08) 0%, transparent 50%)',
+                    }}
+                  />
+                )}
+
+                <div className="flex items-center gap-4 relative z-10">
                   {/* 排名圆标 */}
-                  <div className={`flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br ${rc.bg} flex items-center justify-center shadow-lg z-10`}>
+                  <div className={`flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br ${rc.bg} flex items-center justify-center shadow-lg ${index === 0 ? 'crown-blaze' : ''}`}>
                     {index < 3 ? (
                       <Icon name={rc.icon} className={`w-6 h-6 ${rc.text}`} />
                     ) : (
@@ -301,10 +484,10 @@ export default function Ranking({ onBack }) {
                         </span>
                       )}
                     </div>
-                    {/* 进度条 */}
-                    <div className="mt-1 w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    {/* 火焰进度条 */}
+                    <div className="mt-1 w-full h-2 bg-slate-700/50 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full transition-all duration-500"
+                        className={`h-full rounded-full transition-all duration-500 ${fireLv !== 'cold' ? 'progress-lava' : 'bg-gradient-to-r from-teal-400 to-emerald-400'}`}
                         style={{ width: `${player.progress ?? 0}%` }}
                       />
                     </div>
@@ -312,22 +495,27 @@ export default function Ranking({ onBack }) {
 
                   {/* 数据指标 */}
                   <div className="flex gap-3 flex-shrink-0 items-center">
-                    {/* 积分（主排名依据） */}
-                    <div className="text-center bg-emerald-500/10 rounded-lg px-3 py-1.5 border border-emerald-500/20">
-                      <p className="text-emerald-400 text-xs font-medium">积分</p>
-                      <p className="text-emerald-300 font-mono font-bold text-lg">{player.score ?? 0}</p>
+                    {/* 积分（主排名依据）— 热力强化 */}
+                    <div className={`text-center rounded-lg px-3 py-1.5 border transition-all duration-500 ${scoreCardClass(fireLv)}`}>
+                      <p className={`text-xs font-medium ${fireLv === 'inferno' ? 'text-yellow-300' : fireLv === 'cold' ? 'text-slate-400' : 'text-emerald-300'}`}>积分</p>
+                      <p
+                        ref={el => { if (el && playerId) scoreElRefs.current[playerId] = el; }}
+                        className={`font-mono font-bold text-lg tabular-nums transition-all duration-300 ${fireLv === 'inferno' ? 'text-yellow-300' : fireLv === 'cold' ? 'text-slate-400' : 'text-emerald-300'}`}
+                      >
+                        {score}
+                      </p>
                     </div>
                     <div className="text-center">
                       <p className="text-slate-400 text-xs">用时</p>
-                      <p className="text-white font-mono font-bold text-sm">{formatTime(player.totalTime || 0)}</p>
+                      <p className="text-white font-mono font-bold text-sm tabular-nums">{formatTime(player.totalTime || 0)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-slate-400 text-xs">错误</p>
-                      <p className="text-red-400 font-mono font-bold text-sm">{totalW}</p>
+                      <p className={`font-mono font-bold text-sm tabular-nums ${totalW > 0 ? 'text-red-400' : 'text-slate-400'}`}>{totalW}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-slate-400 text-xs">未填</p>
-                      <p className="text-amber-400 font-mono font-bold text-sm">{totalE}</p>
+                      <p className={`font-mono font-bold text-sm tabular-nums ${totalE > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{totalE}</p>
                     </div>
                   </div>
 
@@ -338,7 +526,7 @@ export default function Ranking({ onBack }) {
                       return (
                         <div
                           key={lv}
-                          className={`w-3 h-3 rounded-full ${done ? 'bg-emerald-400' : 'bg-slate-600'}`}
+                          className={`w-3 h-3 rounded-full transition-all duration-300 ${done ? `bg-gradient-to-br from-emerald-400 to-teal-500 ${fireLv !== 'cold' ? 'shadow-md shadow-emerald-400/50' : ''}` : 'bg-slate-600'}`}
                         />
                       );
                     })}
@@ -359,13 +547,13 @@ export default function Ranking({ onBack }) {
             <div className="flex gap-3">
               <button
                 onClick={() => { SoundManager.playClick(); setShowConfirmClear(false); }}
-                className="flex-1 py-3 bg-slate-600 text-white rounded-xl font-semibold hover:bg-slate-500"
+                className="flex-1 py-3 bg-slate-600 text-white rounded-xl font-semibold hover:bg-slate-500 transition-all duration-300"
               >
                 取消
               </button>
               <button
                 onClick={handleClear}
-                className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600"
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-all duration-300"
               >
                 确认清空
               </button>
