@@ -380,14 +380,13 @@ export async function fetchRoomStats() {
 }
 
 // ══════════════════════════════════════════════
-// 数据清理
+// 数据清理 —— 分模式清空
 // ══════════════════════════════════════════════
 
-export async function clearAllData() {
+/** 清空王牌侦探模式数据（练习关卡 1-4 + 排名计时器），不动竞技模式 */
+export async function clearRankingData() {
   try {
-    // 先调后端清空
-    const res = await request(`${BASE}/admin/clear`, { method: 'DELETE' });
-    // 再清本地
+    const res = await request(`${BASE}/admin/clear-ranking`, { method: 'DELETE' });
     localStorage.removeItem('sudoku_activePlayers');
     localStorage.removeItem('sudoku_competition');
     localStorage.removeItem('sudoku_hasCleared');
@@ -397,6 +396,38 @@ export async function clearAllData() {
     localStorage.removeItem('sudoku_activePlayers');
     localStorage.removeItem('sudoku_competition');
     localStorage.removeItem('sudoku_hasCleared');
+    return { message: '本地数据已清除（后端不可用）', success: true };
+  }
+}
+
+/** 清空竞技模式数据（关卡 level=5 + 竞技房间状态），不动练习模式 */
+export async function clearRaceData() {
+  try {
+    const res = await request(`${BASE}/admin/clear-race`, { method: 'DELETE' });
+    localStorage.removeItem('sudoku_room');
+    return res;
+  } catch (e) {
+    console.warn('[API] 后端清空失败，仅清本地:', e.message);
+    localStorage.removeItem('sudoku_room');
+    return { message: '本地竞技数据已清除（后端不可用）', success: true };
+  }
+}
+
+/** 清空全部数据（练习 + 竞技），谨慎使用 */
+export async function clearAllData() {
+  try {
+    const res = await request(`${BASE}/admin/clear`, { method: 'DELETE' });
+    localStorage.removeItem('sudoku_activePlayers');
+    localStorage.removeItem('sudoku_competition');
+    localStorage.removeItem('sudoku_hasCleared');
+    localStorage.removeItem('sudoku_room');
+    return res;
+  } catch (e) {
+    console.warn('[API] 后端清空失败，仅清本地:', e.message);
+    localStorage.removeItem('sudoku_activePlayers');
+    localStorage.removeItem('sudoku_competition');
+    localStorage.removeItem('sudoku_hasCleared');
+    localStorage.removeItem('sudoku_room');
     return { message: '本地数据已清除（后端不可用）', success: true };
   }
 }

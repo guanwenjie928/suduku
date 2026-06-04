@@ -1,5 +1,6 @@
 """
 排行榜 API —— 实时竞技排行（计分制）
+仅统计练习模式（level 1-4），竞技模式（level=5）由竞技房间独立管理
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
@@ -15,6 +16,7 @@ router = APIRouter(prefix="/api/v1/leaderboard", tags=["leaderboard"])
 def active_leaderboard(db: Session = Depends(get_db)):
     """
     实时竞技排行榜 —— 计分制排序
+    仅统计练习关卡（level 1-4），排除竞技模式 level=5
 
     积分公式:
       score = 完成关卡数 × 1000 - 错误格子 × 10 - 未填格子 × 5 - 用时(秒) ÷ 10
@@ -28,11 +30,13 @@ def active_leaderboard(db: Session = Depends(get_db)):
     result = []
     for p in players:
         details = p.level_details  # 已通过 joinedload 预加载，不会触发额外查询
+        # 排除竞技模式 level=5 的记录
+        practice_details = [d for d in details if d.level != 5]
 
-        completed_count = len(details)
-        total_wrong = sum(d.wrong_cells for d in details)
-        total_empty = sum(d.empty_cells for d in details)
-        total_time = sum(d.time_seconds for d in details)
+        completed_count = len(practice_details)
+        total_wrong = sum(d.wrong_cells for d in practice_details)
+        total_empty = sum(d.empty_cells for d in practice_details)
+        total_time = sum(d.time_seconds for d in practice_details)
 
         # 计分公式
         score = (
@@ -50,7 +54,7 @@ def active_leaderboard(db: Session = Depends(get_db)):
             "totalTime": total_time,
             "isCompleted": bool(p.is_completed),
             "lastUpdate": p.updated_at.isoformat() if p.updated_at else None,
-            "levelDetails": [d.to_dict() for d in details],
+            "levelDetails": [d.to_dict() for d in practice_details],
             "wrongCells": total_wrong,
             "emptyCells": total_empty,
             "score": score,

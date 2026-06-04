@@ -13,6 +13,7 @@ import {
   startPrepPhase,
   resetCompetition,
   clearAllData,
+  clearRankingData,
   lsGet,
 } from '../api';
 
@@ -333,7 +334,7 @@ export default function Ranking({ onBack }) {
 
   const handleClear = async () => {
     SoundManager.playClick();
-    await clearAllData();
+    await clearRankingData();
     await loadAll();
     setShowConfirmClear(false);
   };
@@ -592,7 +593,7 @@ export default function Ranking({ onBack }) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-white/20">
             <h3 className="text-xl font-bold text-white text-center mb-2">确认清空</h3>
-            <p className="text-slate-400 text-center mb-6">此操作将清空所有选手数据，不可撤销！</p>
+            <p className="text-slate-400 text-center mb-6">此操作将清空所有王牌侦探模式数据（练习关卡 + 排名），不影晌竞技模式！</p>
             <div className="flex gap-3">
               <button
                 onClick={() => { SoundManager.playClick(); setShowConfirmClear(false); }}

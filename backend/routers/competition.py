@@ -105,15 +105,38 @@ def start_prep(db: Session = Depends(get_db)):
 @router.post("/reset")
 def reset_competition(db: Session = Depends(get_db)):
     """
-    重置比赛计时器
+    重置排名模式计时器 —— 同时清除所有练习关卡数据（level 1-4），不动竞技模式（level=5）
     """
     comp = _get_or_create_competition(db)
     comp.is_active = 0
     comp.prep_phase = 0
     comp.total_seconds = RANKING_TOTAL_SECONDS
     comp.started_at = None
+
+    # 清除所有练习关卡的提交记录（level 1-4），不动竞技模式 level=5
+    practice_details = db.query(LevelDetail).filter(LevelDetail.level < 5).all()
+    player_ids = set()
+    for detail in practice_details:
+        player_ids.add(detail.player_id)
+        db.delete(detail)
+
+    # 重置相关选手的练习进度（但不影响有竞技记录的选手）
+    if player_ids:
+        players = db.query(Player).filter(Player.id.in_(player_ids)).all()
+        for p in players:
+            # 检查是否还有竞技记录（level=5）
+            has_race = any(d.level == 5 for d in p.level_details)
+            if not has_race:
+                p.current_level = 0
+                p.progress = 0
+                p.total_time = 0
+                p.is_completed = 0
+
     db.commit()
-    return {"message": "比赛已重置"}
+    return {
+        "message": "排名模式已重置，练习数据已清空",
+        "clearedPlayers": len(player_ids),
+    }
 
 
 # ══════════════════════════════════════════════
