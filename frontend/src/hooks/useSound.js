@@ -33,9 +33,19 @@ const SoundManager = {
     const o = this.ctx.createOscillator(), g = this.ctx.createGain();
     o.connect(g); g.connect(this.ctx.destination);
     o.frequency.value = 880; o.type = 'sine';
-    g.gain.setValueAtTime(0.25, now);
+    g.gain.setValueAtTime(0.5, now);
     g.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
     o.start(now); o.stop(now + 0.15);
+  },
+  playCountdown() {
+    this.init();
+    const now = this.ctx.currentTime;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.connect(g); g.connect(this.ctx.destination);
+    o.frequency.value = 1047; o.type = 'square';
+    g.gain.setValueAtTime(0.6, now);
+    g.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+    o.start(now); o.stop(now + 0.12);
   },
   playGo() {
     this.init();
@@ -149,7 +159,7 @@ const SoundManager = {
         const o = this.ctx.createOscillator(), g = this.ctx.createGain();
         o.connect(g); g.connect(this.ctx.destination);
         o.frequency.value = n.f; o.type = 'sawtooth';
-        g.gain.setValueAtTime(0.06, now + n.t);
+        g.gain.setValueAtTime(0.12, now + n.t);
         g.gain.exponentialRampToValueAtTime(0.01, now + n.t + n.d);
         o.start(now + n.t); o.stop(now + n.t + n.d);
         this.tenseBgmOscillators.push(o);
@@ -158,7 +168,7 @@ const SoundManager = {
       const ho = this.ctx.createOscillator(), hg = this.ctx.createGain();
       ho.connect(hg); hg.connect(this.ctx.destination);
       ho.frequency.value = highNotes[hi]; ho.type = 'square';
-      hg.gain.setValueAtTime(0.03, now);
+      hg.gain.setValueAtTime(0.06, now);
       hg.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
       ho.start(now); ho.stop(now + 0.15);
       this.tenseBgmOscillators.push(ho);
@@ -186,7 +196,7 @@ const SoundManager = {
       o.connect(g); g.connect(this.ctx.destination);
       o.frequency.value = freq; o.type = 'sawtooth';
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.25, t + 0.02);
+      g.gain.linearRampToValueAtTime(0.4, t + 0.02);
       g.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
       o.start(t); o.stop(t + 0.4);
     }
@@ -195,7 +205,7 @@ const SoundManager = {
     bo.connect(bg); bg.connect(this.ctx.destination);
     bo.frequency.value = 55; bo.type = 'sine';
     bg.gain.setValueAtTime(0, now + 2.0);
-    bg.gain.linearRampToValueAtTime(0.5, now + 2.02);
+    bg.gain.linearRampToValueAtTime(0.7, now + 2.02);
     bg.gain.exponentialRampToValueAtTime(0.01, now + 3.0);
     bo.start(now + 2.0); bo.stop(now + 3.0);
   },

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
-import { createPlayer, fetchActiveLeaderboard, fetchRoomStatus, submitRace } from '../api';
+import { createPlayer, fetchActiveLeaderboard, fetchRoomStatus, joinRoom, submitRace } from '../api';
 import { formatTime } from '../utils/time';
 
 const DEFAULT_GROUPS = ['第一小组', '第二小组', '第三小组', '第四小组', '第五小组', '第六小组', '第七小组', '第八小组', '第九小组'];
@@ -40,6 +40,18 @@ export default function CompetitionMode({ onBack, showToast }) {
   const [localRemaining, setLocalRemaining] = useState(ROOM_TOTAL_SECONDS);
   const localTimerRef = useRef(null);
 
+  // 自动提交所需的 refs（供 handleAutoSubmit 中读取最新值，避免闭包陷阱）
+  const boardRef = useRef(board);
+  const correctStepsRef = useRef(correctSteps);
+  const incorrectStepsRef = useRef(incorrectSteps);
+  const localRemainingRef = useRef(localRemaining);
+  const submittedRef = useRef(submitted);
+  useEffect(() => { boardRef.current = board; }, [board]);
+  useEffect(() => { correctStepsRef.current = correctSteps; }, [correctSteps]);
+  useEffect(() => { incorrectStepsRef.current = incorrectSteps; }, [incorrectSteps]);
+  useEffect(() => { localRemainingRef.current = localRemaining; }, [localRemaining]);
+  useEffect(() => { submittedRef.current = submitted; }, [submitted]);
+
   // ── 加入竞技房间 ──
   const handleJoinRoom = async (name) => {
     if (!name || !name.trim()) return;
@@ -49,6 +61,8 @@ export default function CompetitionMode({ onBack, showToast }) {
 
     // 创建选手（后端自动创建/查找）
     try { await createPlayer(trimmed); } catch { /* 降级 */ }
+    // 通知后端该选手已加入房间
+    try { await joinRoom(trimmed); } catch { /* 降级 */ }
 
     setStep(STEP.LOBBY);
   };
@@ -76,7 +90,8 @@ export default function CompetitionMode({ onBack, showToast }) {
           setMyScore(null);
           SoundManager.playGo();
         } else if (rs.roomStatus === 'ended' && step === STEP.PLAYING) {
-          // 时间到，强制结束
+          // 时间到，自动提交再强制结束
+          await handleAutoSubmit();
           setStep(STEP.ENDED);
           SoundManager.playDing();
         } else if (rs.roomStatus === 'ended' && step === STEP.SUBMITTED) {
@@ -129,6 +144,24 @@ export default function CompetitionMode({ onBack, showToast }) {
     return () => { if (localTimerRef.current) clearInterval(localTimerRef.current); };
   }, [step, room.roomStartedAt]);
 
+  // ── 紧张 BGM（比赛进行中）──
+  useEffect(() => {
+    if (step === STEP.PLAYING) {
+      SoundManager.playTenseBGM();
+      return () => SoundManager.stopTenseBGM();
+    }
+  }, [step]);
+
+  // ── 倒数音效（最后 10 秒 beep，最后 3 秒更急促）──
+  useEffect(() => {
+    if (step !== STEP.PLAYING || localRemaining <= 0 || localRemaining > 10) return;
+    if (localRemaining <= 3) {
+      SoundManager.playCountdown();
+    } else {
+      SoundManager.playCountdownBeep();
+    }
+  }, [localRemaining, step]);
+
   // ── 点击数字填入 ──
   const handleNumberClick = (num) => {
     if (!selectedCell || submitted || step !== 'playing') return;
@@ -143,6 +176,44 @@ export default function CompetitionMode({ onBack, showToast }) {
     } else {
       setIncorrectSteps(c => c + 1);
     }
+  };
+
+  // ── 自动提交（时间到/强制结束，保留步数数据）──
+  const handleAutoSubmit = async () => {
+    if (submittedRef.current) return;
+    const b = boardRef.current;
+    const cs = correctStepsRef.current;
+    const ics = incorrectStepsRef.current;
+    const lr = localRemainingRef.current;
+
+    let ec = 0, wc = 0;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (b[r][c] === 0) ec++;
+        else if (b[r][c] !== RACE_SOLUTION[r][c]) wc++;
+      }
+    }
+
+    const timeUsed = ROOM_TOTAL_SECONDS - lr;
+
+    let backendScore = null;
+    try {
+      const res = await submitRace({
+        player_name: playerName,
+        time_seconds: timeUsed,
+        empty_cells: ec,
+        wrong_cells: wc,
+        correct_steps: cs,
+        incorrect_steps: ics,
+      });
+      if (res && typeof res.score === 'number') {
+        backendScore = res.score;
+      }
+    } catch { /* 降级 */ }
+
+    const score = backendScore ?? (1000 - wc * 10 - ec * 5 - Math.floor(timeUsed / 10));
+    setMyScore(score);
+    setSubmitted(true);
   };
 
   // ── 提交答案 ──
