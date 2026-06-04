@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
-import { createPlayer, fetchActiveLeaderboard, fetchRoomStatus, joinRoom, submitRace } from '../api';
+import { createPlayer, fetchRoomStatus, fetchRoomStats, joinRoom, submitRace } from '../api';
 import { formatTime } from '../utils/time';
 
 const DEFAULT_GROUPS = ['第一小组', '第二小组', '第三小组', '第四小组', '第五小组', '第六小组', '第七小组', '第八小组', '第九小组'];
@@ -117,7 +117,7 @@ export default function CompetitionMode({ onBack, showToast }) {
       try {
         const rs = await fetchRoomStatus();
         setRoom(prev => {
-          if (prev?.roomStatus === rs.roomStatus && prev?.remainingSeconds === rs.remainingSeconds) {
+          if (prev?.roomStatus === rs.roomStatus && prev?.roomRemainingSeconds === rs.roomRemainingSeconds) {
             return prev;
           }
           return rs;
@@ -156,19 +156,19 @@ export default function CompetitionMode({ onBack, showToast }) {
     return () => clearInterval(timer);
   }, [step]);
 
-  // ── 排行榜轮询 ──
+  // ── 竞技排行榜轮询（使用 fetchRoomStats 获取 race level=5 数据）──
   useEffect(() => {
     if (step === STEP.SELECT || step === STEP.LOBBY) return;
 
-    const pollLB = async () => {
+    const pollStats = async () => {
       try {
-        const lb = await fetchActiveLeaderboard();
-        setLeaderboard(lb);
+        const stats = await fetchRoomStats();
+        setLeaderboard(stats.rankings || []);
       } catch { /* 降级 */ }
     };
 
-    pollLB();
-    const timer = setInterval(pollLB, 2000);
+    pollStats();
+    const timer = setInterval(pollStats, 2000);
     return () => clearInterval(timer);
   }, [step]);
 

@@ -311,12 +311,18 @@ def reset_room(db: Session = Depends(get_db)):
         player_ids.add(detail.player_id)
         db.delete(detail)
 
-    # 重置相关选手的进度
+    # 重置相关选手的进度（但不影响有练习记录 level 1-4 的选手）
     if player_ids:
         players = db.query(Player).filter(Player.id.in_(player_ids)).all()
         for p in players:
-            p.current_level = 1
-            p.progress = 0
+            has_practice = any(d.level < 5 for d in p.level_details)
+            if has_practice:
+                pass  # 保留练习进度
+            else:
+                p.current_level = 0
+                p.progress = 0
+                p.total_time = 0
+                p.is_completed = 0
 
     db.commit()
     return {
