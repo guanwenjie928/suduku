@@ -57,13 +57,20 @@ export default function Home({ onNavigate }) {
       </div>
 
       {/* 次要按钮 */}
-      <div className="w-full max-w-sm grid grid-cols-3 gap-3 relative z-10">
+      <div className="w-full max-w-sm grid grid-cols-2 gap-3 relative z-10">
         <button
           onClick={() => onNavigate('competition')}
           className="py-4 px-2 rounded-2xl font-semibold text-sm bg-gradient-to-r from-purple-400 to-pink-400 text-white shadow-lg hover:shadow-xl transform transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] flex flex-col items-center justify-center gap-2"
         >
           <Icon name="Zap" className="w-6 h-6" />
           竞技模式
+        </button>
+        <button
+          onClick={() => onNavigate('competition-big-screen')}
+          className="py-4 px-2 rounded-2xl font-semibold text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg hover:shadow-xl transform transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] flex flex-col items-center justify-center gap-2"
+        >
+          <Icon name="Monitor" className="w-6 h-6" />
+          竞技大屏
         </button>
         <button
           onClick={() => onNavigate('ranking')}

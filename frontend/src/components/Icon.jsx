@@ -26,6 +26,12 @@ const iconMap = {
   Lightbulb: '\uD83D\uDCA1',
   Grid3X3: '\u25A6',
   Unlock: '\uD83D\uDD13',
+  Flag: '\uD83D\uDEA9',
+  XCircle: '\u274C',
+  RotateCcw: '\uD83D\uDD04',
+  Circle: '\u26AB',
+  Monitor: '\uD83D\uDDA5\uFE0F',
+  Play: '\u25B6\uFE0F',
 };
 
 export default function Icon({ name, className = '' }) {
