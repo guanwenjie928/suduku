@@ -255,7 +255,7 @@ export default function CompetitionBigScreen({ onBack }) {
         )}
 
         {/* 加入小组列表（lobby 阶段） */}
-        {room.roomStatus === 'lobby' && roomStats.joinedPlayers && roomStats.joinedPlayers.length > 0 && (
+        {room.roomStatus !== 'active' && room.roomStatus !== 'ended' && roomStats.joinedPlayers && roomStats.joinedPlayers.length > 0 && (
           <div className="bg-white/5 rounded-3xl border border-white/10 p-6 mb-6">
             <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
               <Icon name="Users" className="w-5 h-5 text-yellow-400" />已加入小组 ({roomStats.joinedPlayers.length})

@@ -166,7 +166,7 @@ def open_room(db: Session = Depends(get_db)):
 def join_room(body: RoomJoin, db: Session = Depends(get_db)):
     """选手加入竞技房间"""
     comp = _get_or_create_competition(db)
-    if comp.room_status not in ('lobby',):
+    if comp.room_status not in ('lobby', 'idle'):
         raise HTTPException(status_code=400, detail="房间未开放加入")
     joined = json.loads(comp.joined_players or '[]')
     if body.player_name not in joined:
@@ -275,13 +275,32 @@ def submit_race(body: RaceSubmit, db: Session = Depends(get_db)):
 
 @router.post("/room/reset")
 def reset_room(db: Session = Depends(get_db)):
-    """重置竞技房间"""
+    """重置竞技房间 —— 同时清除所有竞技历史数据（level=5 的提交记录 & 选手进度）"""
     comp = _get_or_create_competition(db)
     comp.room_status = 'idle'
     comp.room_started_at = None
     comp.joined_players = '[]'
+
+    # 清除所有竞技关卡的提交记录
+    race_details = db.query(LevelDetail).filter(LevelDetail.level == RACE_LEVEL_ID).all()
+    player_ids = set()
+    for detail in race_details:
+        player_ids.add(detail.player_id)
+        db.delete(detail)
+
+    # 重置相关选手的进度
+    if player_ids:
+        players = db.query(Player).filter(Player.id.in_(player_ids)).all()
+        for p in players:
+            p.current_level = 1
+            p.progress = 0
+
     db.commit()
-    return {"message": "竞技房间已重置", "roomStatus": "idle"}
+    return {
+        "message": "竞技房间已重置，历史数据已清空",
+        "roomStatus": "idle",
+        "clearedPlayers": len(player_ids),
+    }
 
 
 @router.get("/room/stats")

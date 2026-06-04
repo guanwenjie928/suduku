@@ -22,23 +22,46 @@ const STEP = {
   ENDED: 'ended'
 };
 
+const LS_KEY = 'sudoku_race_state';
+
+function loadPersistedState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return null;
+}
+
+function savePersistedState(state) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  } catch { /* ignore */ }
+}
+
+function clearPersistedState() {
+  try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+}
+
 export default function CompetitionMode({ onBack, showToast }) {
+  const persisted = loadPersistedState();
+
   // 步骤：SELECT → LOBBY → PLAYING → SUBMITTED → ENDED
-  const [step, setStep] = useState(STEP.SELECT);
-  const [playerName, setPlayerName] = useState('');
+  const [step, setStep] = useState(persisted?.step || STEP.SELECT);
+  const [playerName, setPlayerName] = useState(persisted?.playerName || '');
   const [room, setRoom] = useState({ roomStatus: 'idle', roomTotalSeconds: ROOM_TOTAL_SECONDS, roomRemainingSeconds: ROOM_TOTAL_SECONDS });
-  const [board, setBoard] = useState(RACE_PUZZLE.map(r => [...r]));
+  const [board, setBoard] = useState(persisted?.board || RACE_PUZZLE.map(r => [...r]));
   const [selectedCell, setSelectedCell] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [myScore, setMyScore] = useState(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [myScore, setMyScore] = useState(persisted?.myScore ?? null);
+  const [submitted, setSubmitted] = useState(persisted?.submitted || false);
 
   // 步数追踪：正确步/错误步
-  const [correctSteps, setCorrectSteps] = useState(0);
-  const [incorrectSteps, setIncorrectSteps] = useState(0);
+  const [correctSteps, setCorrectSteps] = useState(persisted?.correctSteps || 0);
+  const [incorrectSteps, setIncorrectSteps] = useState(persisted?.incorrectSteps || 0);
   // 计时器（本地独立计算，配合服务端轮询修正）
   const [localRemaining, setLocalRemaining] = useState(ROOM_TOTAL_SECONDS);
   const localTimerRef = useRef(null);
+  const persistedLoadedRef = useRef(false);
 
   // 自动提交所需的 refs（供 handleAutoSubmit 中读取最新值，避免闭包陷阱）
   const boardRef = useRef(board);
@@ -51,6 +74,25 @@ export default function CompetitionMode({ onBack, showToast }) {
   useEffect(() => { incorrectStepsRef.current = incorrectSteps; }, [incorrectSteps]);
   useEffect(() => { localRemainingRef.current = localRemaining; }, [localRemaining]);
   useEffect(() => { submittedRef.current = submitted; }, [submitted]);
+
+  // ── 持久化关键状态到 localStorage（页面刷新恢复）──
+  useEffect(() => {
+    // 首次挂载时跳过（已从 persisted 恢复），标记后后续变更才写入
+    if (!persistedLoadedRef.current) {
+      persistedLoadedRef.current = true;
+      return;
+    }
+    savePersistedState({
+      step, playerName, board, myScore, submitted, correctSteps, incorrectSteps,
+    });
+  }, [step, playerName, board, myScore, submitted, correctSteps, incorrectSteps]);
+
+  // 如果从 localStorage 恢复了非初始状态，标记已加载以启用持久化
+  useEffect(() => {
+    if (persisted?.step && persisted.step !== STEP.SELECT) {
+      persistedLoadedRef.current = true;
+    }
+  }, []);
 
   // ── 加入竞技房间 ──
   const handleJoinRoom = async (name) => {
@@ -96,6 +138,15 @@ export default function CompetitionMode({ onBack, showToast }) {
           SoundManager.playDing();
         } else if (rs.roomStatus === 'ended' && step === STEP.SUBMITTED) {
           setStep(STEP.ENDED);
+        } else if (rs.roomStatus === 'idle' && (step === STEP.LOBBY || step === STEP.PLAYING || step === STEP.SUBMITTED || step === STEP.ENDED)) {
+          // 房间已被重置，回到选择页面
+          clearPersistedState();
+          setStep(STEP.SELECT);
+          setPlayerName('');
+          setMyScore(null);
+          setSubmitted(false);
+          setCorrectSteps(0);
+          setIncorrectSteps(0);
         }
       } catch { /* 降级 */ }
     };
@@ -272,7 +323,7 @@ export default function CompetitionMode({ onBack, showToast }) {
       {/* 顶部栏 */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => { SoundManager.playClick(); onBack(); }}
+          onClick={() => { SoundManager.playClick(); clearPersistedState(); onBack(); }}
           className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-md text-slate-600 hover:bg-slate-50"
         >
           <Icon name="ArrowLeft" className="w-5 h-5" />返回
@@ -424,7 +475,7 @@ export default function CompetitionMode({ onBack, showToast }) {
                 <p className="text-red-400 mb-4">未提交答案</p>
               )}
               <button
-                onClick={() => { SoundManager.playClick(); onBack(); }}
+                onClick={() => { SoundManager.playClick(); clearPersistedState(); onBack(); }}
                 className="px-6 py-3 bg-gradient-to-r from-purple-400 to-pink-400 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
               >
                 返回首页
