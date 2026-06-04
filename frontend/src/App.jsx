@@ -3,6 +3,7 @@ import Home from './components/Home';
 import Detective from './components/Detective';
 import Ranking from './components/Ranking';
 import Tutorial from './components/Tutorial';
+import CompetitionMode from './components/CompetitionMode';
 import { useToast } from './hooks/useToast';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
       {page === 'detective' && <Detective onBack={() => setPage('home')} showToast={showToast} />}
       {page === 'ranking' && <Ranking onBack={() => setPage('home')} />}
       {page === 'tutorial' && <Tutorial onBack={() => setPage('home')} />}
+      {page === 'competition' && <CompetitionMode onBack={() => setPage('home')} showToast={showToast} />}
     </>
   );
 }

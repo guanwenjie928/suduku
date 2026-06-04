@@ -2,18 +2,13 @@
 排行榜 API —— 实时竞技排行（计分制）
 """
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import Player, LevelDetail
+from config.constants import LEVEL_WEIGHT, WRONG_WEIGHT, EMPTY_WEIGHT, TIME_DIVISOR
 
 router = APIRouter(prefix="/api/v1/leaderboard", tags=["leaderboard"])
-
-# 计分权重常量
-LEVEL_WEIGHT = 1000   # 每完成一关的奖励分
-WRONG_WEIGHT = 10     # 每个错误格子的扣分
-EMPTY_WEIGHT = 5      # 每个未填格子的扣分
-TIME_DIVISOR = 10     # 每 N 秒扣 1 分
 
 
 @router.get("/active")
@@ -28,12 +23,11 @@ def active_leaderboard(db: Session = Depends(get_db)):
       - 多完成一关 (+1000) 绝对优先于少完成但少扣分 (4关全错也只扣640)
       - 未操作小组 score=0，自然垫底
     """
-    players = db.query(Player).all()
+    # 使用 joinedload 一次性加载所有 LevelDetail，避免 N+1 查询
+    players = db.query(Player).options(joinedload(Player.level_details)).all()
     result = []
     for p in players:
-        details = db.query(LevelDetail).filter(
-            LevelDetail.player_id == p.id
-        ).order_by(LevelDetail.level).all()
+        details = p.level_details  # 已通过 joinedload 预加载，不会触发额外查询
 
         completed_count = len(details)
         total_wrong = sum(d.wrong_cells for d in details)

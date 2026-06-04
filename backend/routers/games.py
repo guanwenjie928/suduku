@@ -46,7 +46,11 @@ def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
 
     # 更新选手进度（total_time 累加）
     player.current_level = body.level - 1  # 转成 0-based 下标
-    player.progress = int((body.level / 4) * 100)
+    # level=5 竞技模式：进度直接 100%；否则按比例计算
+    if body.level == 5:
+        player.progress = 100
+    else:
+        player.progress = int((body.level / 4) * 100)
     player.total_time = player.total_time + body.time_seconds  # 累加，而非覆盖
     player.is_completed = 0  # 还没完全通关
 

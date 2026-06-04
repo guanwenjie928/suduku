@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
 import { createPlayer, submitLevel, completeGame } from '../api';
+import { formatTime } from '../utils/time';
 
-const DEFAULT_GROUPS = ['第一小组', '第二小组', '第三小组', '第四小组', '第五小组', '第六小组', '第七小组'];
+const DEFAULT_GROUPS = ['第一小组', '第二小组', '第三小组', '第四小组', '第五小组', '第六小组', '第七小组', '第八小组', '第九小组'];
 
 const LEVELS = [
   { id: 1, title: '第一关', description: '基础数独练习',
@@ -49,11 +50,6 @@ export default function Detective({ onBack, showToast }) {
     setBoard(LEVELS[currentLevel].puzzle.map(r => [...r]));
     setSelectedCell(null);
   }, [currentLevel]);
-
-  const formatTime = secs => {
-    const m = Math.floor(secs / 60), r = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${r.toString().padStart(2, '0')}`;
-  };
 
   // 点击数字填入
   const handleNumberClick = num => {

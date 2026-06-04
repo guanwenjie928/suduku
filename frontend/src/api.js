@@ -38,10 +38,10 @@ async function request(url, options = {}) {
 }
 
 // ── localStorage 辅助 ──
-function lsGet(key) {
+export function lsGet(key) {
   try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
 }
-function lsSet(key, val) {
+export function lsSet(key, val) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
@@ -107,7 +107,7 @@ export async function submitLevel({ player_name, level, time_seconds, empty_cell
     const idx = players.findIndex(p => p.name === player_name);
     if (idx >= 0) {
       players[idx].currentLevel = level;
-      players[idx].progress = Math.round((level / 4) * 100);
+      players[idx].progress = level === 5 ? 100 : Math.round((level / 4) * 100);
       players[idx].totalTime = (players[idx].totalTime || 0) + time_seconds; // 本地也累加
       players[idx].levelDetails = players[idx].levelDetails || [];
       const detailIdx = players[idx].levelDetails.findIndex(d => d.level === level);
@@ -124,7 +124,7 @@ export async function submitLevel({ player_name, level, time_seconds, empty_cell
     const idx = players.findIndex(p => p.name === player_name);
     if (idx >= 0) {
       players[idx].currentLevel = level;
-      players[idx].progress = Math.round((level / 4) * 100);
+      players[idx].progress = level === 5 ? 100 : Math.round((level / 4) * 100);
       players[idx].totalTime = (players[idx].totalTime || 0) + time_seconds;
       players[idx].levelDetails = players[idx].levelDetails || [];
       players[idx].levelDetails.push({ level, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, completedAt: new Date().toISOString() });
@@ -178,11 +178,11 @@ export async function fetchCompetitionStatus() {
         local.prepPhase = false;
       }
     }
-    return local || { isActive: false, totalSeconds: 300, remainingSeconds: 300, prepPhase: false };
+    return local || { isActive: false, totalSeconds: 180, remainingSeconds: 180, prepPhase: false };
   }
 }
 
-export async function startCompetition(totalSeconds = 300) {
+export async function startCompetition(totalSeconds = 180) {
   try {
     const data = await request(`${BASE}/competition/start`, {
       method: 'POST',
@@ -200,7 +200,7 @@ export async function startPrepPhase() {
   try {
     return await request(`${BASE}/competition/prep`, { method: 'POST' });
   } catch {
-    const local = { isActive: false, totalSeconds: 300, remainingSeconds: 300, prepPhase: true };
+    const local = { isActive: false, totalSeconds: 180, remainingSeconds: 180, prepPhase: true };
     lsSet('sudoku_competition', local);
     return { message: '离线模式：预备开始', prepPhase: true };
   }
@@ -210,8 +210,142 @@ export async function resetCompetition() {
   try {
     return await request(`${BASE}/competition/reset`, { method: 'POST' });
   } catch {
-    lsSet('sudoku_competition', { isActive: false, totalSeconds: 300, remainingSeconds: 300, prepPhase: false });
+    lsSet('sudoku_competition', { isActive: false, totalSeconds: 180, remainingSeconds: 180, prepPhase: false });
     return { message: '离线模式：已重置' };
+  }
+}
+
+// ══════════════════════════════════════════════
+// 竞技房间 API
+// ══════════════════════════════════════════════
+
+export async function fetchRoomStatus() {
+  try {
+    return await request(`${BASE}/competition/room/status`);
+  } catch {
+    // 降级：用 localStorage 模拟
+    const local = lsGet('sudoku_room');
+    if (local && local.roomStatus === 'active' && local.roomStartedAt) {
+      const elapsed = Math.floor((Date.now() - local.roomStartedAt) / 1000);
+      local.roomRemainingSeconds = Math.max(0, local.roomTotalSeconds - elapsed);
+      if (local.roomRemainingSeconds <= 0) {
+        local.roomStatus = 'ended';
+      }
+    }
+    return local || { roomStatus: 'idle', roomTotalSeconds: 120, roomRemainingSeconds: 120 };
+  }
+}
+
+export async function openRoom() {
+  try {
+    return await request(`${BASE}/competition/room/open`, { method: 'POST' });
+  } catch {
+    const local = { roomStatus: 'lobby', roomTotalSeconds: 120, roomRemainingSeconds: 120 };
+    lsSet('sudoku_room', local);
+    return { message: '离线模式：房间已开启', roomStatus: 'lobby' };
+  }
+}
+
+export async function startRoom() {
+  try {
+    return await request(`${BASE}/competition/room/start`, { method: 'POST' });
+  } catch {
+    const local = { roomStatus: 'active', roomTotalSeconds: 120, roomRemainingSeconds: 120, roomStartedAt: Date.now() };
+    lsSet('sudoku_room', local);
+    return { message: '离线模式：比赛已开始', roomStatus: 'active', roomTotalSeconds: 120, roomRemainingSeconds: 120 };
+  }
+}
+
+export async function endRoom() {
+  try {
+    return await request(`${BASE}/competition/room/end`, { method: 'POST' });
+  } catch {
+    lsSet('sudoku_room', { roomStatus: 'ended', roomTotalSeconds: 120, roomRemainingSeconds: 0 });
+    return { message: '离线模式：比赛已结束', roomStatus: 'ended' };
+  }
+}
+
+export async function submitRace({ player_name, time_seconds, empty_cells, wrong_cells }) {
+  try {
+    return await request(`${BASE}/competition/room/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ player_name, time_seconds, empty_cells, wrong_cells }),
+    });
+  } catch {
+    // 降级：写入本地 level=5 记录，并计算离线积分
+    const players = lsGet('sudoku_activePlayers') || [];
+    const idx = players.findIndex(p => p.name === player_name);
+    if (idx >= 0) {
+      players[idx].currentLevel = 5;
+      players[idx].progress = 100;
+      players[idx].totalTime = time_seconds;
+      players[idx].levelDetails = players[idx].levelDetails || [];
+      const existIdx = players[idx].levelDetails.findIndex(d => d.level === 5);
+      if (existIdx >= 0) {
+        players[idx].levelDetails[existIdx] = { level: 5, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, completedAt: new Date().toISOString() };
+      } else {
+        players[idx].levelDetails.push({ level: 5, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, completedAt: new Date().toISOString() });
+      }
+      lsSet('sudoku_activePlayers', players);
+    }
+    // 离线计算积分
+    const score = 1000 - wrong_cells * 10 - empty_cells * 5 - Math.floor(time_seconds / 10);
+    return { message: '离线模式：竞技成绩已本地保存', success: true, score };
+  }
+}
+
+export async function resetRoom() {
+  try {
+    return await request(`${BASE}/competition/room/reset`, { method: 'POST' });
+  } catch {
+    lsSet('sudoku_room', { roomStatus: 'idle', roomTotalSeconds: 120, roomRemainingSeconds: 120 });
+    return { message: '离线模式：房间已重置', roomStatus: 'idle' };
+  }
+}
+
+export async function fetchRoomStats() {
+  try {
+    return await request(`${BASE}/competition/room/stats`);
+  } catch {
+    // 降级：从本地 activePlayers 计算统计
+    const players = lsGet('sudoku_activePlayers') || [];
+    const racePlayers = players.filter(p => {
+      const details = p.levelDetails || [];
+      return details.some(d => d.level === 5);
+    });
+    const totalCells = 16; // 4x4
+    const totalPlayers = racePlayers.length;
+    if (totalPlayers === 0) {
+      return {
+        totalPlayers: 0, completedPlayers: 0, averageAccuracy: 0,
+        leaderName: null, leaderScore: 0, rankings: [],
+      };
+    }
+    const completedPlayers = racePlayers.filter(p => {
+      const d = (p.levelDetails || []).find(d => d.level === 5);
+      return d && d.emptyCells === 0 && d.wrongCells === 0;
+    }).length;
+    let totalCorrect = 0;
+    const rankings = racePlayers.map(p => {
+      const d = (p.levelDetails || []).find(d => d.level === 5) || {};
+      const empty = d.emptyCells || 0;
+      const wrong = d.wrongCells || 0;
+      const time = d.time || 0;
+      const correct = totalCells - empty - wrong;
+      totalCorrect += correct;
+      const score = 1000 - wrong * 10 - empty * 5 - Math.floor(time / 10);
+      return { name: p.name, score, timeSeconds: time, correctCells: correct, wrongCells: wrong, emptyCells: empty, isCompleted: empty === 0 && wrong === 0 };
+    });
+    rankings.sort((a, b) => b.score - a.score);
+    const avgAccuracy = Math.round((totalCorrect / (totalPlayers * totalCells)) * 1000) / 10;
+    return {
+      totalPlayers,
+      completedPlayers,
+      averageAccuracy: avgAccuracy,
+      leaderName: rankings[0]?.name || null,
+      leaderScore: rankings[0]?.score || 0,
+      rankings,
+    };
   }
 }
 

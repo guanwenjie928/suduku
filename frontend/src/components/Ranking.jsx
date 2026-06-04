@@ -4,6 +4,7 @@ import { gsap } from 'gsap';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
 import RankingFire from './RankingFire';
+import { formatTime } from '../utils/time';
 import './ranking-fire.css';
 import {
   fetchActiveLeaderboard,
@@ -12,16 +13,34 @@ import {
   startPrepPhase,
   resetCompetition,
   clearAllData,
+  openRoom,
+  startRoom,
+  endRoom,
+  resetRoom,
+  fetchRoomStatus,
+  fetchRoomStats,
+  lsGet,
 } from '../api';
+
+// ── 常量 ──
+const PREP_COUNTDOWN_SECONDS = 3;
+const DEFAULT_TOTAL_SECONDS = 180;
+const LAVA_MODE_THRESHOLD_SECONDS = 60;
+const ROOM_WARNING_THRESHOLD_SECONDS = 30;
+const LEADERBOARD_POLL_MS = 2000;
+const TIMER_POLL_MS = 1000;
+const RANK_ANIMATION_DURATION_MS = 500;
 
 export default function Ranking({ onBack }) {
   const [activePlayers, setActivePlayers] = useState([]);
   const [competition, setCompetition] = useState({
-    isActive: false, totalSeconds: 300, remainingSeconds: 300, prepPhase: false,
+    isActive: false, totalSeconds: DEFAULT_TOTAL_SECONDS, remainingSeconds: DEFAULT_TOTAL_SECONDS, prepPhase: false,
   });
-  const [prepCountdown, setPrepCountdown] = useState(3);
+  const [prepCountdown, setPrepCountdown] = useState(PREP_COUNTDOWN_SECONDS);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [room, setRoom] = useState({ roomStatus: 'idle', roomTotalSeconds: 120, roomRemainingSeconds: 120 });
+  const [roomStats, setRoomStats] = useState({ totalPlayers: 0, completedPlayers: 0, averageAccuracy: 0, leaderName: null, leaderScore: 0, rankings: [] });
 
   // 用于动画：记录上一次排名顺序
   const prevOrderRef = useRef([]);
@@ -39,6 +58,16 @@ export default function Ranking({ onBack }) {
     try {
       try {
         const active = await fetchActiveLeaderboard();
+        // 预计算每个玩家的合计值，避免每次渲染时重复 reduce
+        active.forEach(p => {
+          const details = p.levelDetails || [];
+          if (p.wrongCells == null) {
+            p.wrongCells = details.reduce((s, d) => s + (d.wrongCells || 0), 0);
+          }
+          if (p.emptyCells == null) {
+            p.emptyCells = details.reduce((s, d) => s + (d.emptyCells || 0), 0);
+          }
+        });
         // 计算排名动画
         const newOrder = active.map(p => p.id || p.name);
         const prevOrder = prevOrderRef.current;
@@ -52,7 +81,7 @@ export default function Ranking({ onBack }) {
           });
           if (Object.keys(anim).length > 0) {
             setRankAnim(anim);
-            setTimeout(() => setRankAnim({}), 500); // 动画持续 500ms
+            setTimeout(() => setRankAnim({}), RANK_ANIMATION_DURATION_MS); // 动画持续 500ms
           }
         }
         prevOrderRef.current = newOrder;
@@ -69,11 +98,6 @@ export default function Ranking({ onBack }) {
       setIsOffline(true);
     }
   }, []);
-
-  // localStorage 辅助
-  function lsGet(key) {
-    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
-  }
 
   // 排行榜每 2 秒、计时器每 1 秒刷新
   useEffect(() => {
@@ -94,26 +118,67 @@ export default function Ranking({ onBack }) {
           });
           if (Object.keys(anim).length > 0) {
             setRankAnim(anim);
-            setTimeout(() => setRankAnim({}), 500);
+            setTimeout(() => setRankAnim({}), RANK_ANIMATION_DURATION_MS);
           }
         }
         prevOrderRef.current = newOrder;
+        // 预计算每个玩家的合计值
+        activeRes.forEach(p => {
+          const details = p.levelDetails || [];
+          if (p.wrongCells == null) {
+            p.wrongCells = details.reduce((s, d) => s + (d.wrongCells || 0), 0);
+          }
+          if (p.emptyCells == null) {
+            p.emptyCells = details.reduce((s, d) => s + (d.emptyCells || 0), 0);
+          }
+        });
         setActivePlayers(activeRes);
       } catch {
         setActivePlayers(lsGet('sudoku_activePlayers') || []);
       }
-    }, 2000);
+    }, LEADERBOARD_POLL_MS);
 
     const compTimer = setInterval(async () => {
       try {
         const comp = await fetchCompetitionStatus();
-        setCompetition(comp);
+        setCompetition(prev => {
+          if (prev?.remainingSeconds === comp.remainingSeconds && prev?.isActive === comp.isActive) {
+            return prev;
+          }
+          return comp;
+        });
       } catch { /* 降级 */ }
-    }, 1000);
+    }, TIMER_POLL_MS);
+
+    const roomTimer = setInterval(async () => {
+      try {
+        const rs = await fetchRoomStatus();
+        setRoom(prev => {
+          if (prev?.status === rs.status && prev?.remainingSeconds === rs.remainingSeconds) {
+            return prev;
+          }
+          return rs;
+        });
+      } catch { /* 降级 */ }
+    }, TIMER_POLL_MS);
+
+    const roomStatsTimer = setInterval(async () => {
+      try {
+        const stats = await fetchRoomStats();
+        setRoomStats(prev => {
+          if (prev?.totalPlayers === stats.totalPlayers && prev?.averageAccuracy === stats.averageAccuracy) {
+            return prev;
+          }
+          return stats;
+        });
+      } catch { /* 降级 */ }
+    }, LEADERBOARD_POLL_MS);
 
     return () => {
       clearInterval(leaderboardTimer);
       clearInterval(compTimer);
+      clearInterval(roomTimer);
+      clearInterval(roomStatsTimer);
     };
   }, [loadAll]);
 
@@ -131,11 +196,11 @@ export default function Ranking({ onBack }) {
   useEffect(() => {
     let i;
     if (isPrepPhase && localPrepCountdown > 0) {
-      i = setInterval(() => setLocalPrepCountdown(c => c - 1), 1000);
+      i = setInterval(() => setLocalPrepCountdown(c => c - 1), TIMER_POLL_MS);
     } else if (isPrepPhase && localPrepCountdown === 0) {
       setIsPrepPhase(false);
       setLocalPrepCountdown(3);
-      startCompetition(300);
+      startCompetition(180);
     }
     return () => clearInterval(i);
   }, [isPrepPhase, localPrepCountdown]);
@@ -250,7 +315,7 @@ export default function Ranking({ onBack }) {
 
   // 4. 计时器熔岩模式
   useGSAP(() => {
-    if (competition.remainingSeconds <= 60 && competition.remainingSeconds > 0 && competition.isActive) {
+    if (competition.remainingSeconds <= LAVA_MODE_THRESHOLD_SECONDS && competition.remainingSeconds > 0 && competition.isActive) {
       const timer = document.querySelector('.timer-lava-target');
       if (timer) {
         gsap.to(timer, {
@@ -293,11 +358,11 @@ export default function Ranking({ onBack }) {
     setShowConfirmClear(false);
   };
 
-  // ── 格式化 ──
-  const formatTime = secs => {
-    const m = Math.floor(secs / 60), r = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${r.toString().padStart(2, '0')}`;
-  };
+  // ── 竞技房间操作 ──
+  const handleOpenRoom = async () => { SoundManager.playClick(); await openRoom(); await loadAll(); };
+  const handleStartRoom = async () => { SoundManager.playClick(); await startRoom(); await loadAll(); };
+  const handleEndRoom = async () => { SoundManager.playClick(); await endRoom(); await loadAll(); };
+  const handleResetRoom = async () => { SoundManager.playClick(); await resetRoom(); await loadAll(); };
 
   // 排名图标/颜色
   const rankConfig = [
@@ -326,7 +391,7 @@ export default function Ranking({ onBack }) {
   };
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 transition-all duration-1000 ${competition.remainingSeconds <= 60 && competition.isActive ? 'vignette-danger' : ''}`}>
+    <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 transition-all duration-1000 ${competition.remainingSeconds <= LAVA_MODE_THRESHOLD_SECONDS && competition.isActive ? 'vignette-danger' : ''}`}>
       {/* 火焰粒子 Canvas 层 */}
       <RankingFire activePlayers={activePlayers} topCardRefs={cardRefs} />
 
@@ -367,8 +432,8 @@ export default function Ranking({ onBack }) {
         {/* 比赛控制栏 */}
         <div className="flex items-center justify-between mb-6 px-4 py-3 bg-white/5 rounded-2xl border border-white/10">
           <div className="flex items-center gap-3">
-            <span className={competition.remainingSeconds <= 60 && competition.isActive ? 'timer-lava-mode' : ''}>
-              <Icon name="Trophy" className={`w-6 h-6 ${competition.remainingSeconds <= 60 && competition.isActive ? 'text-red-400' : 'text-yellow-400'}`} />
+            <span className={competition.remainingSeconds <= LAVA_MODE_THRESHOLD_SECONDS && competition.isActive ? 'timer-lava-mode' : ''}>
+              <Icon name="Trophy" className={`w-6 h-6 ${competition.remainingSeconds <= LAVA_MODE_THRESHOLD_SECONDS && competition.isActive ? 'text-red-400' : 'text-yellow-400'}`} />
             </span>
             <span className="text-white font-bold">实时竞技</span>
             <span className="text-slate-400 text-sm">({activePlayers.length}人)</span>
@@ -385,8 +450,8 @@ export default function Ranking({ onBack }) {
                   ? 'bg-emerald-500/20 border-emerald-500/30'
                   : 'bg-slate-500/20 border-slate-500/30'
               }`}>
-                <Icon name="Clock" className={`w-4 h-4 ${competition.remainingSeconds <= 60 && competition.isActive ? 'text-red-400' : 'text-white'}`} />
-                <span className={`font-mono font-bold text-white transition-all duration-300 ${competition.remainingSeconds <= 60 && competition.isActive ? 'timer-lava-target' : ''}`}>
+                <Icon name="Clock" className={`w-4 h-4 ${competition.remainingSeconds <= LAVA_MODE_THRESHOLD_SECONDS && competition.isActive ? 'text-red-400' : 'text-white'}`} />
+                <span className={`font-mono font-bold text-white transition-all duration-300 ${competition.remainingSeconds <= LAVA_MODE_THRESHOLD_SECONDS && competition.isActive ? 'timer-lava-target' : ''}`}>
                   {competition.isActive
                     ? formatTime(competition.remainingSeconds)
                     : formatTime(competition.totalSeconds)}
@@ -411,6 +476,86 @@ export default function Ranking({ onBack }) {
             )}
           </div>
         </div>
+
+        {/* 竞技房间控制面板 */}
+        <div className="flex items-center justify-between mb-6 px-4 py-3 bg-purple-500/10 rounded-2xl border border-purple-500/20">
+          <div className="flex items-center gap-3">
+            <span className={room.roomRemainingSeconds <= ROOM_WARNING_THRESHOLD_SECONDS && room.roomStatus === 'active' ? 'timer-lava-mode' : ''}>
+              <Icon name="Zap" className={`w-6 h-6 ${room.roomStatus === 'active' ? 'text-purple-400' : room.roomStatus === 'lobby' ? 'text-yellow-400' : 'text-slate-400'}`} />
+            </span>
+            <span className="text-white font-bold">竞技房间</span>
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+              room.roomStatus === 'idle' ? 'bg-slate-500/30 text-slate-400' :
+              room.roomStatus === 'lobby' ? 'bg-yellow-500/20 text-yellow-400' :
+              room.roomStatus === 'active' ? 'bg-emerald-500/20 text-emerald-400 animate-pulse' :
+              'bg-red-500/20 text-red-400'
+            }`}>
+              {room.roomStatus === 'idle' ? '空闲' : room.roomStatus === 'lobby' ? '等待中' : room.roomStatus === 'active' ? '比赛中' : '已结束'}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {room.roomStatus === 'active' && (
+              <span className="flex items-center gap-2 px-3 py-1 rounded-lg border bg-purple-500/10 border-purple-500/30">
+                <Icon name="Clock" className={`w-4 h-4 ${room.roomRemainingSeconds <= ROOM_WARNING_THRESHOLD_SECONDS ? 'text-red-400' : 'text-purple-400'}`} />
+                <span className={`font-mono font-bold text-white text-lg ${room.roomRemainingSeconds <= ROOM_WARNING_THRESHOLD_SECONDS ? 'timer-lava-target' : ''}`}>
+                  {formatTime(room.roomRemainingSeconds)}
+                </span>
+              </span>
+            )}
+            {room.roomStatus === 'idle' && (
+              <button onClick={handleOpenRoom}
+                className="px-4 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-all duration-300">
+                开启房间
+              </button>
+            )}
+            {room.roomStatus === 'lobby' && (
+              <button onClick={handleStartRoom}
+                className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all duration-300 animate-pulse">
+                开始比赛
+              </button>
+            )}
+            {(room.roomStatus === 'active' || room.roomStatus === 'lobby') && (
+              <button onClick={handleEndRoom}
+                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all duration-300">
+                结束比赛
+              </button>
+            )}
+            {room.roomStatus === 'ended' && (
+              <button onClick={handleResetRoom}
+                className="px-4 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-300">
+                重置房间
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 竞技房间统计面板 */}
+        {room.roomStatus !== 'idle' && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10 text-center">
+              <p className="text-slate-400 text-xs mb-1">参与小组</p>
+              <p className="text-2xl font-bold text-white font-mono tabular-nums">{roomStats.totalPlayers}</p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10 text-center">
+              <p className="text-slate-400 text-xs mb-1">已完成</p>
+              <p className="text-2xl font-bold text-emerald-400 font-mono tabular-nums">{roomStats.completedPlayers}</p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10 text-center">
+              <p className="text-slate-400 text-xs mb-1">平均正确率</p>
+              <p className="text-2xl font-bold text-yellow-400 font-mono tabular-nums">{roomStats.averageAccuracy}%</p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10 text-center">
+              <p className="text-slate-400 text-xs mb-1">当前领先</p>
+              <p className="text-sm font-bold text-purple-400 truncate">
+                {roomStats.leaderName ? (
+                  <>{roomStats.leaderName} <span className="text-purple-300 font-mono">{roomStats.leaderScore}分</span></>
+                ) : (
+                  <span className="text-slate-500">-</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 垂直排名列表 */}
         <div className="space-y-4" ref={playerListRef}>

@@ -63,9 +63,14 @@ class Competition(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     is_active = Column(Integer, default=0, comment="是否正在倒计时 0/1")
-    total_seconds = Column(Integer, default=300, comment="倒计时总秒数")
+    total_seconds = Column(Integer, default=180, comment="倒计时总秒数")
     started_at = Column(DateTime, comment="开始时间")
     prep_phase = Column(Integer, default=0, comment="是否预备阶段 0/1")
+
+    # 竞技房间字段
+    room_status = Column(String(20), default="idle", comment="竞技房间状态: idle/lobby/active/ended")
+    room_total_seconds = Column(Integer, default=120, comment="竞技倒计时总秒数")
+    room_started_at = Column(DateTime, comment="竞技开始时间")
 
     def to_dict(self):
         import math
@@ -76,11 +81,20 @@ class Competition(Base):
             from datetime import datetime
             elapsed = (datetime.utcnow() - self.started_at).total_seconds()
             remaining = max(0, int(self.total_seconds - elapsed))
+        # 竞技房间剩余时间
+        room_remaining = self.room_total_seconds
+        if self.room_status == 'active' and self.room_started_at:
+            from datetime import datetime
+            elapsed = (datetime.utcnow() - self.room_started_at).total_seconds()
+            room_remaining = max(0, int(self.room_total_seconds - elapsed))
         return {
             "isActive": bool(self.is_active),
             "totalSeconds": self.total_seconds,
             "remainingSeconds": remaining,
             "prepPhase": bool(self.prep_phase),
+            "roomStatus": self.room_status or "idle",
+            "roomTotalSeconds": self.room_total_seconds,
+            "roomRemainingSeconds": room_remaining,
         }
 
 
