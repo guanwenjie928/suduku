@@ -120,6 +120,85 @@ const SoundManager = {
     this.bgmOscillators.forEach(o => { try { o.stop(); } catch (e) { /* ignore */ } });
     this.bgmOscillators = [];
   },
+
+  // ── 紧张背景音乐（竞技模式专用）──
+  tenseBgmOscillators: [],
+  isPlayingTenseBGM: false,
+  tenseBgmInterval: null,
+  playTenseBGM() {
+    if (this.isPlayingTenseBGM) return;
+    this.init();
+    this.isPlayingTenseBGM = true;
+    // 清理旧振荡器，防止内存泄漏
+    this.tenseBgmOscillators.forEach(o => { try { o.stop(); } catch (e) { /* ignore */ } });
+    this.tenseBgmOscillators = [];
+    // 低沉持续的 bass 线 + 紧张高音点缀
+    const bassNotes = [
+      { f: 82, t: 0, d: 0.4 },
+      { f: 82, t: 0.5, d: 0.4 },
+      { f: 98, t: 1.0, d: 0.3 },
+      { f: 82, t: 1.5, d: 0.4 },
+    ];
+    const highNotes = [330, 311, 294, 277, 294, 311, 330, 349];
+    let hi = 0;
+    const playPattern = () => {
+      if (!this.isPlayingTenseBGM) return;
+      const now = this.ctx.currentTime;
+      // 低沉 bass
+      bassNotes.forEach(n => {
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.connect(g); g.connect(this.ctx.destination);
+        o.frequency.value = n.f; o.type = 'sawtooth';
+        g.gain.setValueAtTime(0.06, now + n.t);
+        g.gain.exponentialRampToValueAtTime(0.01, now + n.t + n.d);
+        o.start(now + n.t); o.stop(now + n.t + n.d);
+        this.tenseBgmOscillators.push(o);
+      });
+      // 紧张高音点缀（短促）
+      const ho = this.ctx.createOscillator(), hg = this.ctx.createGain();
+      ho.connect(hg); hg.connect(this.ctx.destination);
+      ho.frequency.value = highNotes[hi]; ho.type = 'square';
+      hg.gain.setValueAtTime(0.03, now);
+      hg.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      ho.start(now); ho.stop(now + 0.15);
+      this.tenseBgmOscillators.push(ho);
+      hi = (hi + 1) % highNotes.length;
+    };
+    playPattern();
+    this.tenseBgmInterval = setInterval(playPattern, 2000);
+  },
+  stopTenseBGM() {
+    this.isPlayingTenseBGM = false;
+    if (this.tenseBgmInterval) { clearInterval(this.tenseBgmInterval); this.tenseBgmInterval = null; }
+    this.tenseBgmOscillators.forEach(o => { try { o.stop(); } catch (e) { /* ignore */ } });
+    this.tenseBgmOscillators = [];
+  },
+
+  // ── 计时结束警报音效（教师大屏专用）──
+  playTimerEnd() {
+    this.init();
+    const now = this.ctx.currentTime;
+    // 警报喇叭声：交替高低频，持续 2 秒
+    for (let i = 0; i < 4; i++) {
+      const t = now + i * 0.5;
+      const freq = i % 2 === 0 ? 440 : 587;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.connect(g); g.connect(this.ctx.destination);
+      o.frequency.value = freq; o.type = 'sawtooth';
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.25, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+      o.start(t); o.stop(t + 0.4);
+    }
+    // 结尾低音重击
+    const bo = this.ctx.createOscillator(), bg = this.ctx.createGain();
+    bo.connect(bg); bg.connect(this.ctx.destination);
+    bo.frequency.value = 55; bo.type = 'sine';
+    bg.gain.setValueAtTime(0, now + 2.0);
+    bg.gain.linearRampToValueAtTime(0.5, now + 2.02);
+    bg.gain.exponentialRampToValueAtTime(0.01, now + 3.0);
+    bo.start(now + 2.0); bo.stop(now + 3.0);
+  },
 };
 
 export default SoundManager;

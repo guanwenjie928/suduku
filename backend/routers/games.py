@@ -34,6 +34,8 @@ def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
         existing.time_seconds = body.time_seconds
         existing.empty_cells = body.empty_cells
         existing.wrong_cells = body.wrong_cells
+        existing.correct_steps = body.correct_steps
+        existing.incorrect_steps = body.incorrect_steps
     else:
         detail = LevelDetail(
             player_id=player.id,
@@ -41,6 +43,8 @@ def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
             time_seconds=body.time_seconds,
             empty_cells=body.empty_cells,
             wrong_cells=body.wrong_cells,
+            correct_steps=body.correct_steps,
+            incorrect_steps=body.incorrect_steps,
         )
         db.add(detail)
 

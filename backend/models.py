@@ -43,6 +43,8 @@ class LevelDetail(Base):
     time_seconds = Column(Integer, default=0, comment="该关用时（秒）")
     empty_cells = Column(Integer, default=0, comment="未填格子数")
     wrong_cells = Column(Integer, default=0, comment="错误格子数")
+    correct_steps = Column(Integer, default=0, comment="正确步数")
+    incorrect_steps = Column(Integer, default=0, comment="错误步数")
     completed_at = Column(DateTime, server_default=func.now())
 
     player = relationship("Player", back_populates="level_details")
@@ -53,6 +55,8 @@ class LevelDetail(Base):
             "time": self.time_seconds,
             "emptyCells": self.empty_cells,
             "wrongCells": self.wrong_cells,
+            "correctSteps": self.correct_steps,
+            "incorrectSteps": self.incorrect_steps,
             "completedAt": self.completed_at.isoformat() if self.completed_at else None,
         }
 
@@ -71,6 +75,7 @@ class Competition(Base):
     room_status = Column(String(20), default="idle", comment="竞技房间状态: idle/lobby/active/ended")
     room_total_seconds = Column(Integer, default=120, comment="竞技倒计时总秒数")
     room_started_at = Column(DateTime, comment="竞技开始时间")
+    joined_players = Column(String(2000), default="[]", comment="已加入房间的选手名列表(JSON数组)")
 
     def to_dict(self):
         import math
@@ -95,7 +100,16 @@ class Competition(Base):
             "roomStatus": self.room_status or "idle",
             "roomTotalSeconds": self.room_total_seconds,
             "roomRemainingSeconds": room_remaining,
+            "joinedPlayers": self._parse_joined_players(),
         }
+
+    def _parse_joined_players(self):
+        """解析已加入选手 JSON 数组"""
+        import json
+        try:
+            return json.loads(self.joined_players or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
 
 
 class HistoryRecord(Base):

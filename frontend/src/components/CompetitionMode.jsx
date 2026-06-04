@@ -33,6 +33,9 @@ export default function CompetitionMode({ onBack, showToast }) {
   const [myScore, setMyScore] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
+  // 步数追踪：正确步/错误步
+  const [correctSteps, setCorrectSteps] = useState(0);
+  const [incorrectSteps, setIncorrectSteps] = useState(0);
   // 计时器（本地独立计算，配合服务端轮询修正）
   const [localRemaining, setLocalRemaining] = useState(ROOM_TOTAL_SECONDS);
   const localTimerRef = useRef(null);
@@ -134,6 +137,12 @@ export default function CompetitionMode({ onBack, showToast }) {
     const nb = board.map(r => [...r]);
     nb[row][col] = num;
     setBoard(nb);
+    // 步数追踪：比对答案
+    if (num === RACE_SOLUTION[row][col]) {
+      setCorrectSteps(c => c + 1);
+    } else {
+      setIncorrectSteps(c => c + 1);
+    }
   };
 
   // ── 提交答案 ──
@@ -160,6 +169,8 @@ export default function CompetitionMode({ onBack, showToast }) {
         time_seconds: timeUsed,
         empty_cells: ec,
         wrong_cells: wc,
+        correct_steps: correctSteps,
+        incorrect_steps: incorrectSteps,
       });
       // 使用后端权威积分
       if (res && typeof res.score === 'number') {

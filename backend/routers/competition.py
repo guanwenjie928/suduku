@@ -2,6 +2,7 @@
 比赛计时 API —— 统一倒计时管理 + 竞技房间
 数据库中只保留 1 条 competition 记录
 """
+import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Competition, Player, LevelDetail
-from schemas import CompetitionStart, RaceSubmit
+from schemas import CompetitionStart, RaceSubmit, RoomJoin
 from config.constants import LEVEL_WEIGHT, WRONG_WEIGHT, EMPTY_WEIGHT, TIME_DIVISOR, RACE_LEVEL_ID
 
 router = APIRouter(prefix="/api/v1/competition", tags=["competition"])
@@ -156,8 +157,23 @@ def open_room(db: Session = Depends(get_db)):
     comp = _get_or_create_competition(db)
     comp.room_status = 'lobby'
     comp.room_started_at = None
+    comp.joined_players = '[]'
     db.commit()
-    return {"message": "竞技房间已开启，等待选手加入", "roomStatus": "lobby"}
+    return {"message": "竞技房间已开启，等待选手加入", "roomStatus": "lobby", "joinedPlayers": []}
+
+
+@router.post("/room/join")
+def join_room(body: RoomJoin, db: Session = Depends(get_db)):
+    """选手加入竞技房间"""
+    comp = _get_or_create_competition(db)
+    if comp.room_status not in ('lobby',):
+        raise HTTPException(status_code=400, detail="房间未开放加入")
+    joined = json.loads(comp.joined_players or '[]')
+    if body.player_name not in joined:
+        joined.append(body.player_name)
+        comp.joined_players = json.dumps(joined, ensure_ascii=False)
+        db.commit()
+    return {"message": f"{body.player_name} 已加入房间", "joinedPlayers": joined}
 
 
 @router.post("/room/start")
@@ -226,6 +242,8 @@ def submit_race(body: RaceSubmit, db: Session = Depends(get_db)):
         existing.time_seconds = time_seconds
         existing.empty_cells = body.empty_cells
         existing.wrong_cells = body.wrong_cells
+        existing.correct_steps = body.correct_steps
+        existing.incorrect_steps = body.incorrect_steps
     else:
         detail = LevelDetail(
             player_id=player.id,
@@ -233,6 +251,8 @@ def submit_race(body: RaceSubmit, db: Session = Depends(get_db)):
             time_seconds=time_seconds,
             empty_cells=body.empty_cells,
             wrong_cells=body.wrong_cells,
+            correct_steps=body.correct_steps,
+            incorrect_steps=body.incorrect_steps,
         )
         db.add(detail)
 
@@ -259,6 +279,7 @@ def reset_room(db: Session = Depends(get_db)):
     comp = _get_or_create_competition(db)
     comp.room_status = 'idle'
     comp.room_started_at = None
+    comp.joined_players = '[]'
     db.commit()
     return {"message": "竞技房间已重置", "roomStatus": "idle"}
 
@@ -267,11 +288,11 @@ def reset_room(db: Session = Depends(get_db)):
 def get_room_stats(db: Session = Depends(get_db)):
     """
     获取竞技房间统计数据（教师大屏用）
-    返回：参与人数、已完成人数、平均正确率、当前领先
+    返回：参与人数、已完成人数、平均正确率、步数统计、当前领先
     """
     comp = _get_or_create_competition(db)
 
-    # 查询所有 level=5 的提交
+    # 查询所有 level=5 的提交（含步数统计）
     submissions = (
         db.query(LevelDetail, Player.name)
         .join(Player, LevelDetail.player_id == Player.id)
@@ -285,9 +306,13 @@ def get_room_stats(db: Session = Depends(get_db)):
             "totalPlayers": 0,
             "completedPlayers": 0,
             "averageAccuracy": 0,
+            "totalCorrectSteps": 0,
+            "totalIncorrectSteps": 0,
+            "averageStepAccuracy": 0,
             "leaderName": None,
             "leaderScore": 0,
             "rankings": [],
+            "joinedPlayers": json.loads(comp.joined_players or '[]'),
         }
 
     # 已完成：全对且无未填
@@ -303,10 +328,19 @@ def get_room_stats(db: Session = Depends(get_db)):
     )
     avg_accuracy = round(total_correct / (total_players * RACE_TOTAL_CELLS) * 100, 1)
 
+    # 步数统计
+    total_correct_steps = sum(s.correct_steps or 0 for s, _ in submissions)
+    total_incorrect_steps = sum(s.incorrect_steps or 0 for s, _ in submissions)
+    total_steps = total_correct_steps + total_incorrect_steps
+    avg_step_accuracy = round(total_correct_steps / total_steps * 100, 1) if total_steps > 0 else 0
+
     # 积分排名
     rankings = []
     for s, name in submissions:
         score = _calc_score(s.empty_cells, s.wrong_cells, s.time_seconds)
+        cs = s.correct_steps or 0
+        ics = s.incorrect_steps or 0
+        total_s = cs + ics
         rankings.append({
             "name": name,
             "score": score,
@@ -314,6 +348,9 @@ def get_room_stats(db: Session = Depends(get_db)):
             "correctCells": RACE_TOTAL_CELLS - s.empty_cells - s.wrong_cells,
             "wrongCells": s.wrong_cells,
             "emptyCells": s.empty_cells,
+            "correctSteps": cs,
+            "incorrectSteps": ics,
+            "stepAccuracy": round(cs / total_s * 100, 1) if total_s > 0 else 0,
             "isCompleted": s.empty_cells == 0 and s.wrong_cells == 0,
         })
     rankings.sort(key=lambda x: x["score"], reverse=True)
@@ -324,7 +361,11 @@ def get_room_stats(db: Session = Depends(get_db)):
         "totalPlayers": total_players,
         "completedPlayers": completed_players,
         "averageAccuracy": avg_accuracy,
+        "totalCorrectSteps": total_correct_steps,
+        "totalIncorrectSteps": total_incorrect_steps,
+        "averageStepAccuracy": avg_step_accuracy,
         "leaderName": leader["name"] if leader else None,
         "leaderScore": leader["score"] if leader else 0,
         "rankings": rankings,
+        "joinedPlayers": json.loads(comp.joined_players or '[]'),
     }

@@ -30,12 +30,16 @@ class LevelDetailSubmit(BaseModel):
     time_seconds: int = Field(..., ge=0, description="该关用时（秒）")
     empty_cells: int = Field(0, ge=0, description="未填格子数")
     wrong_cells: int = Field(0, ge=0, description="错误格子数")
+    correct_steps: int = Field(0, ge=0, description="正确步数")
+    incorrect_steps: int = Field(0, ge=0, description="错误步数")
 
 class LevelDetailResponse(BaseModel):
     level: int
     time: int
     emptyCells: int = 0
     wrongCells: int = 0
+    correctSteps: int = 0
+    incorrectSteps: int = 0
     completedAt: Optional[str] = None
 
 
@@ -81,6 +85,13 @@ class RaceSubmit(BaseModel):
     time_seconds: int = Field(..., ge=0, description="用时（秒）")
     empty_cells: int = Field(0, ge=0, description="未填格子数")
     wrong_cells: int = Field(0, ge=0, description="错误格子数")
+    correct_steps: int = Field(0, ge=0, description="正确步数")
+    incorrect_steps: int = Field(0, ge=0, description="错误步数")
+
+
+class RoomJoin(BaseModel):
+    """加入竞技房间"""
+    player_name: str = Field(..., min_length=1, max_length=50, description="选手/小组名称")
 
 
 class CompetitionResponse(BaseModel):
@@ -91,6 +102,7 @@ class CompetitionResponse(BaseModel):
     roomStatus: str = "idle"
     roomTotalSeconds: int = 120
     roomRemainingSeconds: int = 120
+    joinedPlayers: list = []
 
 
 # ── Generic ──

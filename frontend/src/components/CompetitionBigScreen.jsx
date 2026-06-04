@@ -27,9 +27,13 @@ export default function CompetitionBigScreen({ onBack }) {
     totalPlayers: 0,
     completedPlayers: 0,
     averageAccuracy: 0,
+    totalCorrectSteps: 0,
+    totalIncorrectSteps: 0,
+    averageStepAccuracy: 0,
     leaderName: null,
     leaderScore: 0,
     rankings: [],
+    joinedPlayers: [],
   });
 
   // ── 房间状态轮询 ──
@@ -61,6 +65,19 @@ export default function CompetitionBigScreen({ onBack }) {
     const timer = setInterval(pollStats, STATS_POLL_MS);
     return () => clearInterval(timer);
   }, []);
+
+  // ── 背景音乐与音效管理 ──
+  useEffect(() => {
+    if (room.roomStatus === 'active') {
+      SoundManager.playTenseBGM();
+    } else if (room.roomStatus === 'ended') {
+      SoundManager.stopTenseBGM();
+      SoundManager.playTimerEnd();
+    }
+    return () => {
+      SoundManager.stopTenseBGM();
+    };
+  }, [room.roomStatus]);
 
   // ── 操作处理 ──
   const handleOpenRoom = async () => {
@@ -211,22 +228,51 @@ export default function CompetitionBigScreen({ onBack }) {
           </div>
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
             <Icon name="Target" className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
-            <p className="text-slate-400 text-xs mb-1">平均正确率</p>
+            <p className="text-slate-400 text-xs mb-1">格子正确率</p>
             <p className="text-3xl font-bold text-yellow-400 font-mono tabular-nums">{roomStats.averageAccuracy}%</p>
           </div>
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
-            <Icon name="Trophy" className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-            <p className="text-slate-400 text-xs mb-1">当前领先</p>
-            {roomStats.leaderName ? (
-              <div>
-                <p className="text-sm font-bold text-purple-400 truncate">{roomStats.leaderName}</p>
-                <p className="text-lg font-bold text-purple-300 font-mono">{roomStats.leaderScore}分</p>
-              </div>
-            ) : (
-              <p className="text-slate-500 text-lg">-</p>
-            )}
+            <Icon name="Activity" className="w-6 h-6 text-purple-400 mx-auto mb-2" />
+            <p className="text-slate-400 text-xs mb-1">步数正确率</p>
+            <p className="text-3xl font-bold text-purple-400 font-mono tabular-nums">{roomStats.averageStepAccuracy}%</p>
           </div>
         </div>
+
+        {/* 步数统计卡片 */}
+        {roomStats.totalPlayers > 0 && (
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
+              <Icon name="CheckCircle" className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+              <p className="text-slate-400 text-xs mb-1">全组正确步数</p>
+              <p className="text-3xl font-bold text-emerald-400 font-mono tabular-nums">{roomStats.totalCorrectSteps}</p>
+            </div>
+            <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
+              <Icon name="XCircle" className="w-6 h-6 text-red-400 mx-auto mb-2" />
+              <p className="text-slate-400 text-xs mb-1">全组错误步数</p>
+              <p className="text-3xl font-bold text-red-400 font-mono tabular-nums">{roomStats.totalIncorrectSteps}</p>
+            </div>
+          </div>
+        )}
+
+        {/* 加入小组列表（lobby 阶段） */}
+        {room.roomStatus === 'lobby' && roomStats.joinedPlayers && roomStats.joinedPlayers.length > 0 && (
+          <div className="bg-white/5 rounded-3xl border border-white/10 p-6 mb-6">
+            <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+              <Icon name="Users" className="w-5 h-5 text-yellow-400" />已加入小组 ({roomStats.joinedPlayers.length})
+            </h2>
+            <div className="flex flex-wrap gap-3">
+              {roomStats.joinedPlayers.map((name, i) => (
+                <div
+                  key={name}
+                  className="px-5 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold text-lg"
+                  style={{ animation: `toastIn 0.3s ease-out ${i * 0.1}s both` }}
+                >
+                  {name}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 排名详情表 */}
         {roomStats.rankings.length > 0 ? (
@@ -244,9 +290,12 @@ export default function CompetitionBigScreen({ onBack }) {
                     <th className="px-6 py-3 font-medium">小组</th>
                     <th className="px-6 py-3 font-medium text-center">积分</th>
                     <th className="px-6 py-3 font-medium text-center">用时</th>
-                    <th className="px-6 py-3 font-medium text-center">正确</th>
-                    <th className="px-6 py-3 font-medium text-center">错误</th>
+                    <th className="px-6 py-3 font-medium text-center">正确格</th>
+                    <th className="px-6 py-3 font-medium text-center">错误格</th>
                     <th className="px-6 py-3 font-medium text-center">未填</th>
+                    <th className="px-6 py-3 font-medium text-center">正确步</th>
+                    <th className="px-6 py-3 font-medium text-center">错误步</th>
+                    <th className="px-6 py-3 font-medium text-center">步准确率</th>
                     <th className="px-6 py-3 font-medium text-center">状态</th>
                   </tr>
                 </thead>
@@ -289,6 +338,23 @@ export default function CompetitionBigScreen({ onBack }) {
                         <td className="px-6 py-3 text-center">
                           <span className={`font-mono font-bold ${r.emptyCells > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
                             {r.emptyCells}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <span className="font-mono text-emerald-400">{r.correctSteps ?? 0}</span>
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`font-mono ${(r.incorrectSteps ?? 0) > 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                            {r.incorrectSteps ?? 0}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`font-mono font-bold ${
+                            (r.stepAccuracy ?? 0) >= 80 ? 'text-emerald-400' :
+                            (r.stepAccuracy ?? 0) >= 50 ? 'text-yellow-400' :
+                            'text-red-400'
+                          }`}>
+                            {r.stepAccuracy ?? 0}%
                           </span>
                         </td>
                         <td className="px-6 py-3 text-center">

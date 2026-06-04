@@ -96,11 +96,11 @@ export async function createPlayer(name) {
 // 游戏 API
 // ══════════════════════════════════════════════
 
-export async function submitLevel({ player_name, level, time_seconds, empty_cells, wrong_cells }) {
+export async function submitLevel({ player_name, level, time_seconds, empty_cells, wrong_cells, correct_steps = 0, incorrect_steps = 0 }) {
   try {
     const data = await request(`${BASE}/games/submit`, {
       method: 'POST',
-      body: JSON.stringify({ player_name, level, time_seconds, empty_cells, wrong_cells }),
+      body: JSON.stringify({ player_name, level, time_seconds, empty_cells, wrong_cells, correct_steps, incorrect_steps }),
     });
     // 更新本地缓存中的选手数据
     const players = lsGet('sudoku_activePlayers') || [];
@@ -265,11 +265,11 @@ export async function endRoom() {
   }
 }
 
-export async function submitRace({ player_name, time_seconds, empty_cells, wrong_cells }) {
+export async function submitRace({ player_name, time_seconds, empty_cells, wrong_cells, correct_steps = 0, incorrect_steps = 0 }) {
   try {
     return await request(`${BASE}/competition/room/submit`, {
       method: 'POST',
-      body: JSON.stringify({ player_name, time_seconds, empty_cells, wrong_cells }),
+      body: JSON.stringify({ player_name, time_seconds, empty_cells, wrong_cells, correct_steps, incorrect_steps }),
     });
   } catch {
     // 降级：写入本地 level=5 记录，并计算离线积分
@@ -282,9 +282,9 @@ export async function submitRace({ player_name, time_seconds, empty_cells, wrong
       players[idx].levelDetails = players[idx].levelDetails || [];
       const existIdx = players[idx].levelDetails.findIndex(d => d.level === 5);
       if (existIdx >= 0) {
-        players[idx].levelDetails[existIdx] = { level: 5, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, completedAt: new Date().toISOString() };
+        players[idx].levelDetails[existIdx] = { level: 5, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, correctSteps: correct_steps, incorrectSteps: incorrect_steps, completedAt: new Date().toISOString() };
       } else {
-        players[idx].levelDetails.push({ level: 5, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, completedAt: new Date().toISOString() });
+        players[idx].levelDetails.push({ level: 5, time: time_seconds, emptyCells: empty_cells, wrongCells: wrong_cells, correctSteps: correct_steps, incorrectSteps: incorrect_steps, completedAt: new Date().toISOString() });
       }
       lsSet('sudoku_activePlayers', players);
     }
@@ -303,6 +303,17 @@ export async function resetRoom() {
   }
 }
 
+export async function joinRoom(playerName) {
+  try {
+    return await request(`${BASE}/competition/room/join`, {
+      method: 'POST',
+      body: JSON.stringify({ player_name: playerName }),
+    });
+  } catch {
+    return { message: '离线模式：加入失败', joinedPlayers: [playerName] };
+  }
+}
+
 export async function fetchRoomStats() {
   try {
     return await request(`${BASE}/competition/room/stats`);
@@ -318,7 +329,8 @@ export async function fetchRoomStats() {
     if (totalPlayers === 0) {
       return {
         totalPlayers: 0, completedPlayers: 0, averageAccuracy: 0,
-        leaderName: null, leaderScore: 0, rankings: [],
+        totalCorrectSteps: 0, totalIncorrectSteps: 0, averageStepAccuracy: 0,
+        leaderName: null, leaderScore: 0, rankings: [], joinedPlayers: [],
       };
     }
     const completedPlayers = racePlayers.filter(p => {
@@ -326,25 +338,43 @@ export async function fetchRoomStats() {
       return d && d.emptyCells === 0 && d.wrongCells === 0;
     }).length;
     let totalCorrect = 0;
+    let totalCorrectSteps = 0;
+    let totalIncorrectSteps = 0;
     const rankings = racePlayers.map(p => {
       const d = (p.levelDetails || []).find(d => d.level === 5) || {};
       const empty = d.emptyCells || 0;
       const wrong = d.wrongCells || 0;
       const time = d.time || 0;
+      const cs = d.correctSteps || 0;
+      const ics = d.incorrectSteps || 0;
       const correct = totalCells - empty - wrong;
       totalCorrect += correct;
+      totalCorrectSteps += cs;
+      totalIncorrectSteps += ics;
+      const totalS = cs + ics;
       const score = 1000 - wrong * 10 - empty * 5 - Math.floor(time / 10);
-      return { name: p.name, score, timeSeconds: time, correctCells: correct, wrongCells: wrong, emptyCells: empty, isCompleted: empty === 0 && wrong === 0 };
+      return {
+        name: p.name, score, timeSeconds: time, correctCells: correct, wrongCells: wrong,
+        emptyCells: empty, correctSteps: cs, incorrectSteps: ics,
+        stepAccuracy: totalS > 0 ? Math.round((cs / totalS) * 1000) / 10 : 0,
+        isCompleted: empty === 0 && wrong === 0,
+      };
     });
     rankings.sort((a, b) => b.score - a.score);
     const avgAccuracy = Math.round((totalCorrect / (totalPlayers * totalCells)) * 1000) / 10;
+    const totalSteps = totalCorrectSteps + totalIncorrectSteps;
+    const avgStepAccuracy = totalSteps > 0 ? Math.round((totalCorrectSteps / totalSteps) * 1000) / 10 : 0;
     return {
       totalPlayers,
       completedPlayers,
       averageAccuracy: avgAccuracy,
+      totalCorrectSteps,
+      totalIncorrectSteps,
+      averageStepAccuracy: avgStepAccuracy,
       leaderName: rankings[0]?.name || null,
       leaderScore: rankings[0]?.score || 0,
       rankings,
+      joinedPlayers: [],
     };
   }
 }

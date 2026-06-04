@@ -36,6 +36,7 @@ export default function Ranking({ onBack }) {
   // 用于动画：记录上一次排名顺序
   const prevOrderRef = useRef([]);
   const [rankAnim, setRankAnim] = useState({}); // { playerId: { fromRank, toRank } }
+  const timerEndPlayedRef = useRef(false); // 防止重复播放计时结束音效
 
   // ── 火焰效果专用 refs ──
   const cardRefs = useRef({});       // 小组卡片 DOM 引用
@@ -294,6 +295,20 @@ export default function Ranking({ onBack }) {
       }
     }
   }, [competition.remainingSeconds]);
+
+  // ── 计时结束音效 ──
+  useEffect(() => {
+    // 计时器归零 → 播放计时结束警报
+    if (competition.remainingSeconds === 0 && competition.isActive === false && !timerEndPlayedRef.current) {
+      timerEndPlayedRef.current = true;
+      SoundManager.stopBGM();
+      SoundManager.playTimerEnd();
+    }
+    // 计时器重新开始 → 重置标记
+    if (competition.remainingSeconds > 0 || competition.isActive) {
+      timerEndPlayedRef.current = false;
+    }
+  }, [competition.remainingSeconds, competition.isActive]);
 
   // ── 操作 ──
   const handleStartPrep = async () => {
