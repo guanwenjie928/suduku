@@ -105,9 +105,14 @@ export default function Detective({ onBack, showToast }) {
       // 全部通关 —— 标记玩家完成状态
       if (playerName) {
         try {
-          await completeGame({
+          // 汇总总用时、总错误、总空格
+      const totalTime = levelDetails.reduce((sum, ld) => sum + (ld.time || 0), 0);
+      await completeGame({
             player_name: playerName,
             completed_levels: LEVELS.length,
+            total_time: totalTime,
+            wrong_cells: totalWrongCells,
+            empty_cells: totalEmptyCells,
           });
         } catch { /* 降级已在 api.js 处理 */ }
       }

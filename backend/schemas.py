@@ -47,7 +47,7 @@ class LevelDetailResponse(BaseModel):
 class GameCompleteRequest(BaseModel):
     player_name: str = Field(..., description="选手名称")
     completed_levels: int = Field(..., description="完成的关卡总数")
-    total_time: int = Field(..., description="总用时（秒）")
+    total_time: int = Field(0, description="总用时（秒）")
     wrong_cells: int = Field(0, description="总错误格子数")
     empty_cells: int = Field(0, description="总未填格子数")
 
