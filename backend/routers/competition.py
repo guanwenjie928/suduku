@@ -292,7 +292,9 @@ def reset_room(db: Session = Depends(get_db)):
     if player_ids:
         players = db.query(Player).filter(Player.id.in_(player_ids)).all()
         for p in players:
-            p.current_level = 1
+            practice_count = db.query(LevelDetail).filter(LevelDetail.player_id == p.id, LevelDetail.level != RACE_LEVEL_ID).count()
+            if practice_count == 0:
+                p.current_level = 0
             p.progress = 0
 
     db.commit()

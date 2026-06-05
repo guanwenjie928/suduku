@@ -150,9 +150,9 @@ export async function completeGame({ player_name, completed_levels }) {
 // 排行榜 API（仅实时排行）
 // ══════════════════════════════════════════════
 
-export async function fetchActiveLeaderboard() {
+export async function fetchActiveLeaderboard(mode = 'all') {
   try {
-    const data = await request(`${BASE}/leaderboard/active`);
+    const data = await request(`${BASE}/leaderboard/active?mode=${mode}`);
     lsSet('sudoku_activePlayers', data);
     return data;
   } catch {
@@ -382,6 +382,35 @@ export async function fetchRoomStats() {
 // ══════════════════════════════════════════════
 // 数据清理
 // ══════════════════════════════════════════════
+
+export async function clearPlayerProgress(playerName, mode = 'all') {
+  try {
+    return await request(`${BASE}/players/${encodeURIComponent(playerName)}/progress?mode=${mode}`, { method: 'DELETE' });
+  } catch {
+    const players = lsGet('sudoku_activePlayers') || [];
+    if (mode === 'competition') {
+      const idx = players.findIndex(p => p.name === playerName);
+      if (idx >= 0) {
+        players[idx].levelDetails = (players[idx].levelDetails || []).filter(d => d.level === 5);
+        if (players[idx].levelDetails.length === 0) {
+          players[idx].currentLevel = 0;
+          players[idx].progress = 0;
+        }
+        lsSet('sudoku_activePlayers', players);
+      }
+    } else if (mode === 'practice') {
+      const idx = players.findIndex(p => p.name === playerName);
+      if (idx >= 0) {
+        players[idx].levelDetails = (players[idx].levelDetails || []).filter(d => d.level === 5);
+        players[idx].currentLevel = 0;
+        players[idx].progress = 0;
+        players[idx].totalTime = 0;
+        lsSet('sudoku_activePlayers', players);
+      }
+    }
+    return { message: '离线模式：本地数据已清除', success: true };
+  }
+}
 
 export async function clearAllData() {
   try {

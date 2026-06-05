@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Icon from './Icon';
 import SoundManager from '../hooks/useSound';
-import { createPlayer, fetchActiveLeaderboard, fetchRoomStatus, joinRoom, submitRace } from '../api';
+import { fetchActiveLeaderboard, fetchRoomStatus, joinRoom, submitRace } from '../api';
 import { formatTime } from '../utils/time';
 
 const DEFAULT_GROUPS = ['第一小组', '第二小组', '第三小组', '第四小组', '第五小组', '第六小组', '第七小组', '第八小组', '第九小组'];
@@ -101,13 +101,12 @@ export default function CompetitionMode({ onBack, showToast }) {
     const trimmed = name.trim();
     setPlayerName(trimmed);
 
-    // 创建选手（后端自动创建/查找）
-    try { await createPlayer(trimmed); } catch { /* 降级 */ }
-    // 通知后端该选手已加入房间
+    // 仅加入房间，不在 players 表创建记录（提交成绩时才创建，确保练习/竞技隔离）
     try { await joinRoom(trimmed); } catch { /* 降级 */ }
 
     setStep(STEP.LOBBY);
   };
+
 
   // ── 房间状态轮询 ──
   useEffect(() => {
@@ -138,7 +137,7 @@ export default function CompetitionMode({ onBack, showToast }) {
           SoundManager.playDing();
         } else if (rs.roomStatus === 'ended' && step === STEP.SUBMITTED) {
           setStep(STEP.ENDED);
-        } else if (rs.roomStatus === 'idle' && (step === STEP.LOBBY || step === STEP.PLAYING || step === STEP.SUBMITTED || step === STEP.ENDED)) {
+        } else if (rs.roomStatus === 'idle' && (step === STEP.PLAYING || step === STEP.SUBMITTED || step === STEP.ENDED)) {
           // 房间已被重置，回到选择页面
           clearPersistedState();
           setStep(STEP.SELECT);
@@ -162,7 +161,7 @@ export default function CompetitionMode({ onBack, showToast }) {
 
     const pollLB = async () => {
       try {
-        const lb = await fetchActiveLeaderboard();
+        const lb = await fetchActiveLeaderboard('competition');
         setLeaderboard(lb);
       } catch { /* 降级 */ }
     };
