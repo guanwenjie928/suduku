@@ -15,8 +15,13 @@ router = APIRouter(prefix="/api/v1/games", tags=["games"])
 def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
     """
     提交单关成绩 —— 每完成一关立即调用
+    仅接受练习模式关卡（level 1-4），竞技模式请使用 /competition/room/submit
     total_time 累加计算
     """
+    # 拒绝竞技模式关卡
+    if body.level == 5:
+        raise HTTPException(status_code=400, detail="竞技模式请使用 /competition/room/submit 接口")
+
     player = db.query(Player).filter(Player.name == body.player_name).first()
     if not player:
         # 自动创建选手（防御性处理）
@@ -50,11 +55,7 @@ def submit_level(body: LevelDetailSubmit, db: Session = Depends(get_db)):
 
     # 更新选手进度（total_time 累加）
     player.current_level = body.level - 1  # 转成 0-based 下标
-    # level=5 竞技模式：进度直接 100%；否则按比例计算
-    if body.level == 5:
-        player.progress = 100
-    else:
-        player.progress = int((body.level / 4) * 100)
+    player.progress = int((body.level / 4) * 100)
     player.total_time = player.total_time + body.time_seconds  # 累加，而非覆盖
     player.is_completed = 0  # 还没完全通关
 
