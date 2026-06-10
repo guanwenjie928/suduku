@@ -391,7 +391,7 @@ export async function clearPlayerProgress(playerName, mode = 'all') {
     if (mode === 'competition') {
       const idx = players.findIndex(p => p.name === playerName);
       if (idx >= 0) {
-        players[idx].levelDetails = (players[idx].levelDetails || []).filter(d => d.level === 5);
+        players[idx].levelDetails = (players[idx].levelDetails || []).filter(d => d.level !== 5);
         if (players[idx].levelDetails.length === 0) {
           players[idx].currentLevel = 0;
           players[idx].progress = 0;
