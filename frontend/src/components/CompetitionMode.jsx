@@ -55,9 +55,8 @@ export default function CompetitionMode({ onBack, showToast }) {
   const [myScore, setMyScore] = useState(persisted?.myScore ?? null);
   const [submitted, setSubmitted] = useState(persisted?.submitted || false);
 
-  // 步数追踪：正确步/错误步
-  const [correctSteps, setCorrectSteps] = useState(persisted?.correctSteps || 0);
-  const [incorrectSteps, setIncorrectSteps] = useState(persisted?.incorrectSteps || 0);
+  // 错误填入反馈（错误数字不填入，仅闪烁红色提示）
+  const [errorCell, setErrorCell] = useState(null);
   // 计时器（本地独立计算，配合服务端轮询修正）
   const [localRemaining, setLocalRemaining] = useState(ROOM_TOTAL_SECONDS);
   const localTimerRef = useRef(null);
@@ -65,13 +64,9 @@ export default function CompetitionMode({ onBack, showToast }) {
 
   // 自动提交所需的 refs（供 handleAutoSubmit 中读取最新值，避免闭包陷阱）
   const boardRef = useRef(board);
-  const correctStepsRef = useRef(correctSteps);
-  const incorrectStepsRef = useRef(incorrectSteps);
   const localRemainingRef = useRef(localRemaining);
   const submittedRef = useRef(submitted);
   useEffect(() => { boardRef.current = board; }, [board]);
-  useEffect(() => { correctStepsRef.current = correctSteps; }, [correctSteps]);
-  useEffect(() => { incorrectStepsRef.current = incorrectSteps; }, [incorrectSteps]);
   useEffect(() => { localRemainingRef.current = localRemaining; }, [localRemaining]);
   useEffect(() => { submittedRef.current = submitted; }, [submitted]);
 
@@ -83,9 +78,9 @@ export default function CompetitionMode({ onBack, showToast }) {
       return;
     }
     savePersistedState({
-      step, playerName, board, myScore, submitted, correctSteps, incorrectSteps,
+      step, playerName, board, myScore, submitted,
     });
-  }, [step, playerName, board, myScore, submitted, correctSteps, incorrectSteps]);
+  }, [step, playerName, board, myScore, submitted]);
 
   // 如果从 localStorage 恢复了非初始状态，标记已加载以启用持久化
   useEffect(() => {
@@ -145,8 +140,7 @@ export default function CompetitionMode({ onBack, showToast }) {
           setPlayerName('');
           setMyScore(null);
           setSubmitted(false);
-          setCorrectSteps(0);
-          setIncorrectSteps(0);
+          setErrorCell(null);
         }
       } catch { /* 降级 */ }
     };
@@ -214,27 +208,28 @@ export default function CompetitionMode({ onBack, showToast }) {
   }, [localRemaining, step]);
 
   // ── 点击数字填入 ──
+  // 正确数字直接填入；错误数字不可填入，当前选中格闪烁红色提示
   const handleNumberClick = (num) => {
     if (!selectedCell || submitted || step !== 'playing') return;
-    SoundManager.playClick();
     const { row, col } = selectedCell;
-    const nb = board.map(r => [...r]);
-    nb[row][col] = num;
-    setBoard(nb);
-    // 步数追踪：比对答案
     if (num === RACE_SOLUTION[row][col]) {
-      setCorrectSteps(c => c + 1);
+      SoundManager.playClick();
+      const nb = board.map(r => [...r]);
+      nb[row][col] = num;
+      setBoard(nb);
+      setSelectedCell(null);
+      setErrorCell(null);
     } else {
-      setIncorrectSteps(c => c + 1);
+      SoundManager.playClick();
+      setErrorCell({ row, col });
+      setTimeout(() => setErrorCell(null), 500);
     }
   };
 
-  // ── 自动提交（时间到/强制结束，保留步数数据）──
+  // ── 自动提交（时间到/强制结束）──
   const handleAutoSubmit = async () => {
     if (submittedRef.current) return;
     const b = boardRef.current;
-    const cs = correctStepsRef.current;
-    const ics = incorrectStepsRef.current;
     const lr = localRemainingRef.current;
 
     let ec = 0, wc = 0;
@@ -254,8 +249,8 @@ export default function CompetitionMode({ onBack, showToast }) {
         time_seconds: timeUsed,
         empty_cells: ec,
         wrong_cells: wc,
-        correct_steps: cs,
-        incorrect_steps: ics,
+        correct_steps: 0,
+        incorrect_steps: 0,
       });
       if (res && typeof res.score === 'number') {
         backendScore = res.score;
@@ -291,8 +286,8 @@ export default function CompetitionMode({ onBack, showToast }) {
         time_seconds: timeUsed,
         empty_cells: ec,
         wrong_cells: wc,
-        correct_steps: correctSteps,
-        incorrect_steps: incorrectSteps,
+        correct_steps: 0,
+        incorrect_steps: 0,
       });
       // 使用后端权威积分
       if (res && typeof res.score === 'number') {
@@ -398,6 +393,7 @@ export default function CompetitionMode({ onBack, showToast }) {
                       const isCorrect = submitted && cell !== 0 && cell === RACE_SOLUTION[r][c];
                       const isWrong = submitted && cell !== 0 && cell !== RACE_SOLUTION[r][c];
                       const isMissing = submitted && cell === 0;
+                      const isError = !submitted && errorCell?.row === r && errorCell?.col === c;
                       return (
                         <button
                           key={`${r}-${c}`}
@@ -414,9 +410,11 @@ export default function CompetitionMode({ onBack, showToast }) {
                                   ? 'bg-red-200 text-red-700'
                                   : isMissing
                                     ? 'bg-amber-100 text-amber-400'
-                                    : isSelected
-                                      ? 'bg-purple-200 text-purple-600 ring-4 ring-purple-400'
-                                      : 'bg-slate-100 text-purple-600 hover:scale-105'
+                                    : isError
+                                      ? 'bg-red-100 text-red-600 ring-4 ring-red-400 animate-pulse'
+                                      : isSelected
+                                        ? 'bg-purple-200 text-purple-600 ring-4 ring-purple-400'
+                                        : 'bg-slate-100 text-purple-600 hover:scale-105'
                           }`}
                         >
                           {cell !== 0 ? cell : (isMissing ? '?' : '')}
