@@ -9,6 +9,7 @@ import {
   resetRoom,
   fetchRoomStatus,
   fetchRoomStats,
+  clearPlayerProgress,
 } from '../api';
 
 const ROOM_TOTAL_SECONDS = 120;
@@ -92,6 +93,26 @@ export default function CompetitionBigScreen({ onBack }) {
   const handleResetRoom = async () => {
     SoundManager.playClick();
     try { await resetRoom(); } catch (err) { console.error('Reset room failed:', err); }
+  };
+
+
+  const handleClearCompetition = async () => {
+    if (!confirm('确定要清除所有竞技数据吗？（练习数据不受影响）')) return;
+    try {
+      const names = roomStats.rankings.map(r => r.name);
+      if (names.length === 0) {
+        // 没有提交数据，尝试清除已加入的选手
+        const joined = roomStats.joinedPlayers || [];
+        await Promise.all(joined.map(n => clearPlayerProgress(n, 'competition').catch(() => {})));
+      } else {
+        await Promise.all(names.map(n => clearPlayerProgress(n, 'competition').catch(() => {})));
+      }
+    } catch { /* ignore */ }
+    // 刷新数据
+    try {
+      const stats = await fetchRoomStats();
+      setRoomStats(stats);
+    } catch { /* ignore */ }
   };
 
   // ── 状态徽章 ──
@@ -197,12 +218,20 @@ export default function CompetitionBigScreen({ onBack }) {
                 </button>
               )}
               {room.roomStatus === 'ended' && (
+                <>
                 <button
                   onClick={handleResetRoom}
                   className="px-6 py-3 bg-slate-500 hover:bg-slate-600 text-white rounded-xl font-bold text-lg transition-all duration-300 flex items-center gap-2"
                 >
                   <Icon name="RotateCcw" className="w-5 h-5" />重置房间
                 </button>
+                <button
+                  onClick={handleClearCompetition}
+                  className="px-4 py-3 bg-red-500/80 hover:bg-red-600 text-white rounded-xl font-medium transition-all duration-300 flex items-center gap-2"
+                >
+                  <Icon name="Trash2" className="w-5 h-5" />清除竞技数据
+                </button>
+                </>
               )}
             </div>
           </div>

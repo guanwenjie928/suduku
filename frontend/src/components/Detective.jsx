@@ -41,7 +41,8 @@ export default function Detective({ onBack, showToast }) {
   useEffect(() => {
     if (isPlaying) {
       const i = setInterval(() => setSeconds(s => s + 1), 1000);
-      return () => clearInterval(i);
+    
+  return () => clearInterval(i);
     }
   }, [isPlaying]);
 

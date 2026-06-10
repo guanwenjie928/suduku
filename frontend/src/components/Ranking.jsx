@@ -12,7 +12,7 @@ import {
   startCompetition,
   startPrepPhase,
   resetCompetition,
-  clearAllData,
+  clearPlayerProgress,
   clearRankingData,
   lsGet,
 } from '../api';
@@ -50,7 +50,7 @@ export default function Ranking({ onBack }) {
   const loadAll = useCallback(async () => {
     try {
       try {
-        const active = await fetchActiveLeaderboard();
+        const active = await fetchActiveLeaderboard('practice');
         // 预计算每个玩家的合计值，避免每次渲染时重复 reduce
         active.forEach(p => {
           const details = p.levelDetails || [];
@@ -97,7 +97,7 @@ export default function Ranking({ onBack }) {
     loadAll();
     const leaderboardTimer = setInterval(async () => {
       try {
-        const activeRes = await fetchActiveLeaderboard();
+        const activeRes = await fetchActiveLeaderboard('practice');
         // 排名动画
         const newOrder = activeRes.map(p => p.id || p.name);
         const prevOrder = prevOrderRef.current;
@@ -334,7 +334,10 @@ export default function Ranking({ onBack }) {
 
   const handleClear = async () => {
     SoundManager.playClick();
-    await clearRankingData();
+    const players = activePlayers;
+    await Promise.all(
+      players.map(p => clearPlayerProgress(p.name, 'practice').catch(() => {}))
+    );
     await loadAll();
     setShowConfirmClear(false);
   };
@@ -593,7 +596,7 @@ export default function Ranking({ onBack }) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-white/20">
             <h3 className="text-xl font-bold text-white text-center mb-2">确认清空</h3>
-            <p className="text-slate-400 text-center mb-6">此操作将清空所有王牌侦探模式数据（练习关卡 + 排名），不影晌竞技模式！</p>
+            <p className="text-slate-400 text-center mb-6">此操作将清空练习模式数据，竞技数据不受影响！</p>
             <div className="flex gap-3">
               <button
                 onClick={() => { SoundManager.playClick(); setShowConfirmClear(false); }}

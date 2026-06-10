@@ -28,7 +28,7 @@ from starlette.requests import Request
 # ─── 导入原有后端 ──────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent / "backend"))
 from database import engine, Base
-from routers import players, games, leaderboard, competition
+from routers import players, games, leaderboard, competition, admin
 
 # ─── 项目配置 ──────────────────────────────────────────────
 ROOT = Path(__file__).parent
@@ -82,6 +82,7 @@ app.include_router(players.router)
 app.include_router(games.router)
 app.include_router(leaderboard.router)
 app.include_router(competition.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")
