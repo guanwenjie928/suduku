@@ -336,11 +336,8 @@ def get_room_stats(db: Session = Depends(get_db)):
             "joinedPlayers": json.loads(comp.joined_players or '[]'),
         }
 
-    # 已完成：全对且无未填
-    completed_players = sum(
-        1 for s, _ in submissions
-        if s.empty_cells == 0 and s.wrong_cells == 0
-    )
+    # 已完成：只要有提交就算已完成
+    completed_players = total_players
 
     # 平均正确率：正确格子 / 总格子
     total_correct = sum(
@@ -359,20 +356,17 @@ def get_room_stats(db: Session = Depends(get_db)):
     rankings = []
     for s, name in submissions:
         score = _calc_score(s.empty_cells, s.wrong_cells, s.time_seconds)
-        cs = s.correct_steps or 0
-        ics = s.incorrect_steps or 0
-        total_s = cs + ics
+        correct_cells = RACE_TOTAL_CELLS - s.empty_cells - s.wrong_cells
+        accuracy_rate = round(correct_cells / RACE_TOTAL_CELLS * 100, 1)
         rankings.append({
             "name": name,
             "score": score,
             "timeSeconds": s.time_seconds,
-            "correctCells": RACE_TOTAL_CELLS - s.empty_cells - s.wrong_cells,
+            "correctCells": correct_cells,
             "wrongCells": s.wrong_cells,
             "emptyCells": s.empty_cells,
-            "correctSteps": cs,
-            "incorrectSteps": ics,
-            "stepAccuracy": round(cs / total_s * 100, 1) if total_s > 0 else 0,
-            "isCompleted": s.empty_cells == 0 and s.wrong_cells == 0,
+            "accuracyRate": accuracy_rate,
+            "isCompleted": True,
         })
     rankings.sort(key=lambda x: x["score"], reverse=True)
 

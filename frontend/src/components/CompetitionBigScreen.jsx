@@ -16,7 +16,6 @@ const ROOM_TOTAL_SECONDS = 120;
 const ROOM_WARNING_SECONDS = 30;
 const TIMER_POLL_MS = 1000;
 const STATS_POLL_MS = 2000;
-const RACE_TOTAL_CELLS = 16;
 
 export default function CompetitionBigScreen({ onBack }) {
   const [room, setRoom] = useState({
@@ -295,7 +294,7 @@ export default function CompetitionBigScreen({ onBack }) {
                     <th className="px-6 py-3 font-medium">小组</th>
                     <th className="px-6 py-3 font-medium text-center">积分</th>
                     <th className="px-6 py-3 font-medium text-center">用时</th>
-                    <th className="px-6 py-3 font-medium text-center">正确格</th>
+                    <th className="px-6 py-3 font-medium text-center">正确率</th>
                     <th className="px-6 py-3 font-medium text-center">状态</th>
                   </tr>
                 </thead>
@@ -304,7 +303,6 @@ export default function CompetitionBigScreen({ onBack }) {
                     const rankBg = i === 0 ? 'bg-yellow-400/20' : i === 1 ? 'bg-slate-300/15' : i === 2 ? 'bg-amber-600/20' : '';
                     const MEDALS = ['&#x1F947;', '&#x1F948;', '&#x1F949;'];
                     const rankNum = MEDALS[i] || i + 1;
-                    const correctCells = RACE_TOTAL_CELLS - r.wrongCells - r.emptyCells;
                     return (
                       <tr key={r.name} className={`border-b border-white/5 hover:bg-white/5 transition-colors ${rankBg}`}>
                         <td className="px-6 py-3">
@@ -327,8 +325,7 @@ export default function CompetitionBigScreen({ onBack }) {
                           <span className="font-mono text-slate-300">{formatTime(r.timeSeconds)}</span>
                         </td>
                         <td className="px-6 py-3 text-center">
-                          <span className="font-mono font-bold text-emerald-400">{correctCells}</span>
-                          <span className="text-slate-500 text-xs">/{RACE_TOTAL_CELLS}</span>
+                          <span className="font-mono font-bold text-emerald-400">{r.accuracyRate ?? 0}%</span>
                         </td>
                         <td className="px-6 py-3 text-center">
                           {r.isCompleted ? (
