@@ -296,8 +296,6 @@ export default function CompetitionBigScreen({ onBack }) {
                     <th className="px-6 py-3 font-medium text-center">积分</th>
                     <th className="px-6 py-3 font-medium text-center">用时</th>
                     <th className="px-6 py-3 font-medium text-center">正确格</th>
-                    <th className="px-6 py-3 font-medium text-center">错误格</th>
-                    <th className="px-6 py-3 font-medium text-center">未填</th>
                     <th className="px-6 py-3 font-medium text-center">状态</th>
                   </tr>
                 </thead>
@@ -331,16 +329,6 @@ export default function CompetitionBigScreen({ onBack }) {
                         <td className="px-6 py-3 text-center">
                           <span className="font-mono font-bold text-emerald-400">{correctCells}</span>
                           <span className="text-slate-500 text-xs">/{RACE_TOTAL_CELLS}</span>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={`font-mono font-bold ${r.wrongCells > 0 ? 'text-red-400' : 'text-slate-500'}`}>
-                            {r.wrongCells}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={`font-mono font-bold ${r.emptyCells > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
-                            {r.emptyCells}
-                          </span>
                         </td>
                         <td className="px-6 py-3 text-center">
                           {r.isCompleted ? (
