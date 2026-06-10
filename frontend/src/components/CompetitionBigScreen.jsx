@@ -28,9 +28,6 @@ export default function CompetitionBigScreen({ onBack }) {
     totalPlayers: 0,
     completedPlayers: 0,
     averageAccuracy: 0,
-    totalCorrectSteps: 0,
-    totalIncorrectSteps: 0,
-    averageStepAccuracy: 0,
     leaderName: null,
     leaderScore: 0,
     rankings: [],
@@ -241,7 +238,7 @@ export default function CompetitionBigScreen({ onBack }) {
         </div>
 
         {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
             <Icon name="Users" className="w-6 h-6 text-blue-400 mx-auto mb-2" />
             <p className="text-slate-400 text-xs mb-1">参与小组</p>
@@ -260,28 +257,7 @@ export default function CompetitionBigScreen({ onBack }) {
             <p className="text-slate-400 text-xs mb-1">格子正确率</p>
             <p className="text-3xl font-bold text-yellow-400 font-mono tabular-nums">{roomStats.averageAccuracy}%</p>
           </div>
-          <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
-            <Icon name="Activity" className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-            <p className="text-slate-400 text-xs mb-1">步数正确率</p>
-            <p className="text-3xl font-bold text-purple-400 font-mono tabular-nums">{roomStats.averageStepAccuracy}%</p>
-          </div>
         </div>
-
-        {/* 步数统计卡片 */}
-        {roomStats.totalPlayers > 0 && (
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
-              <Icon name="CheckCircle" className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
-              <p className="text-slate-400 text-xs mb-1">全组正确步数</p>
-              <p className="text-3xl font-bold text-emerald-400 font-mono tabular-nums">{roomStats.totalCorrectSteps}</p>
-            </div>
-            <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
-              <Icon name="XCircle" className="w-6 h-6 text-red-400 mx-auto mb-2" />
-              <p className="text-slate-400 text-xs mb-1">全组错误步数</p>
-              <p className="text-3xl font-bold text-red-400 font-mono tabular-nums">{roomStats.totalIncorrectSteps}</p>
-            </div>
-          </div>
-        )}
 
         {/* 加入小组列表（lobby 阶段） */}
         {room.roomStatus !== 'active' && room.roomStatus !== 'ended' && roomStats.joinedPlayers && roomStats.joinedPlayers.length > 0 && (
@@ -322,9 +298,6 @@ export default function CompetitionBigScreen({ onBack }) {
                     <th className="px-6 py-3 font-medium text-center">正确格</th>
                     <th className="px-6 py-3 font-medium text-center">错误格</th>
                     <th className="px-6 py-3 font-medium text-center">未填</th>
-                    <th className="px-6 py-3 font-medium text-center">正确步</th>
-                    <th className="px-6 py-3 font-medium text-center">错误步</th>
-                    <th className="px-6 py-3 font-medium text-center">步准确率</th>
                     <th className="px-6 py-3 font-medium text-center">状态</th>
                   </tr>
                 </thead>
@@ -367,23 +340,6 @@ export default function CompetitionBigScreen({ onBack }) {
                         <td className="px-6 py-3 text-center">
                           <span className={`font-mono font-bold ${r.emptyCells > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
                             {r.emptyCells}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className="font-mono text-emerald-400">{r.correctSteps ?? 0}</span>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={`font-mono ${(r.incorrectSteps ?? 0) > 0 ? 'text-red-400' : 'text-slate-500'}`}>
-                            {r.incorrectSteps ?? 0}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={`font-mono font-bold ${
-                            (r.stepAccuracy ?? 0) >= 80 ? 'text-emerald-400' :
-                            (r.stepAccuracy ?? 0) >= 50 ? 'text-yellow-400' :
-                            'text-red-400'
-                          }`}>
-                            {r.stepAccuracy ?? 0}%
                           </span>
                         </td>
                         <td className="px-6 py-3 text-center">

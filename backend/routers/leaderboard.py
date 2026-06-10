@@ -39,7 +39,6 @@ def active_leaderboard(
         else:
             details = list(all_details)
 
-        # 练习模式显示所有选手（选择小组后立即可见），竞技模式仅显示有竞技数据的选手
         # 竞技模式：仅显示有竞技数据的选手
         if mode == "competition" and not details:
             continue
