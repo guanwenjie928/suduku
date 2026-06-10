@@ -253,7 +253,7 @@ export default function CompetitionBigScreen({ onBack }) {
           </div>
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10 text-center">
             <Icon name="Target" className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
-            <p className="text-slate-400 text-xs mb-1">格子正确率</p>
+            <p className="text-slate-400 text-xs mb-1">正确率</p>
             <p className="text-3xl font-bold text-yellow-400 font-mono tabular-nums">{roomStats.averageAccuracy}%</p>
           </div>
         </div>
